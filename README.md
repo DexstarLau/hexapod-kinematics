@@ -1,5 +1,9 @@
 # hexapod-kinematics
 
+[![CI](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml/badge.svg)](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue)
+![Tests](https://img.shields.io/badge/tests-71%20passing-brightgreen)
+
 Forward kinematics, inverse kinematics and a tripod gait engine for a six-legged
 walking robot, with a Python reference bound to the same C source, a test suite,
 and a visualiser.
