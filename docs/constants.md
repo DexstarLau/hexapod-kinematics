@@ -13,9 +13,10 @@ run. They carry no claim about the physical machine, and any result derived
 from one is stamped by `Constants.stamp()`.
 
 - **`coxa_length_mm`** = 50.0000 mm - PROJECT_02 §3 (superseded D34/D49/D71)
+- **`dtheta_peak_deg_s`** = 375.0000 deg/s - PROJECT_04 §2 no-load figure, D62
 - **`femur_length_mm`** = 90.0000 mm - PROJECT_02 §3 (superseded D34/D49/D71)
 - **`payload_mass_kg`** = 2.1500 kg - PROJECT_04 §2
-- **`theta_3_deg`** = 0.0000 deg - D160, PROJECT_02 §2, §3
+- **`theta_3_deg`** = -30.0000 deg - D160, PROJECT_02 §2, §3
 - **`tibia_length_mm`** = 90.0000 mm - D160, PROJECT_02 §3
 
 ## Blocked constants
@@ -23,20 +24,29 @@ from one is stamped by `Constants.stamp()`.
 These have no authoritative value. Reading one raises `ConstantError`.
 No code may proceed past them with a guessed number.
 
+- **`beta_mount_deg`** (deg) - hex_config.h, D23, D24, D25 - no value has been issued
+- **`joint_max_deg`** (deg) - hex_config.h - ZX20D travel limits not issued
+- **`joint_min_deg`** (deg) - hex_config.h - ZX20D travel limits not issued
 - **`servo_speed_loaded_deg_s`** (deg/s) - PROJECT_04 §2 - to be measured by the hardware workstream.
+- **`stale_ramp_ms`** (ms) - hex_config.h, D144 - needed by gait_core, due 30 Sep
+- **`swing_eps_mm_s`** (mm/s) - hex_config.h, D144 - needed by gait_core, due 30 Sep
 - **`torque_margin`** (ratio) - Coordination ruling required.
 
 ## All constants
 
 | Constant | Value | Unit | Status | Source |
 |---|---|---|---|---|
+| `beta_mount_deg` | - | deg | **BLOCKED** | hex_config.h, D23, D24, D25 - no value has been issued |
 | `body_bob_budget_mm` | 5.0000 | mm | decided | D11, D64 |
 | `command_step_deg` | 0.3000 | deg | decided | PROJECT_04 §2 |
 | `controlled_dof_per_leg` | 2 | count | decided | D3 |
 | `coxa_length_mm` | 50.0000 | mm | **SURROGATE** | PROJECT_02 §3 (superseded D34/D49/D71) |
 | `coxa_positions_mm` | R1: [100.0, -56.57]; R2: [0.0, -80.0]; R3: [-100.0, -56.57]; L1: [100.0, 56.57]; L2: [0.0, 80.0]; L3: [-100.0, 56.57] | mm | **PROVISIONAL** | D24, D25 |
+| `dtheta_peak_deg_s` | 375.0000 | deg/s | **SURROGATE** | PROJECT_04 §2 no-load figure, D62 |
 | `duty_factor` | 0.5000 | ratio | decided | D146 |
 | `femur_length_mm` | 90.0000 | mm | **SURROGATE** | PROJECT_02 §3 (superseded D34/D49/D71) |
+| `joint_max_deg` | - | deg | **BLOCKED** | hex_config.h - ZX20D travel limits not issued |
+| `joint_min_deg` | - | deg | **BLOCKED** | hex_config.h - ZX20D travel limits not issued |
 | `leg_count` | 6 | count | decided | PROJECT_01 §5.1 |
 | `leg_neutral_direction_deg` | R1: -90.0; R2: -90.0; R3: -90.0; L1: 90.0; L2: 90.0; L3: 90.0 | deg | decided | D15 |
 | `members_per_leg` | 3 | count | decided | D160, PROJECT_02 §1 |
@@ -49,17 +59,21 @@ No code may proceed past them with a guessed number.
 | `servo_model` | ZX20D | text | decided | PROJECT_04 §1 |
 | `servo_speed_loaded_deg_s` | - | deg/s | **BLOCKED** | PROJECT_04 §2 - to be measured by the hardware workstream. |
 | `servo_speed_no_load_deg_s` | 375.0000 | deg/s | decided | PROJECT_04 §2 |
+| `stale_ramp_ms` | - | ms | **BLOCKED** | hex_config.h, D144 - needed by gait_core, due 30 Sep |
 | `stall_torque_kgcm` | 20.0000 | kg*cm | decided | PROJECT_04 §2 |
 | `swing_clearance_max_mm` | 20.0000 | mm | decided | D69 |
 | `swing_clearance_mm` | 15.0000 | mm | decided | D69 |
+| `swing_eps_mm_s` | - | mm/s | **BLOCKED** | hex_config.h, D144 - needed by gait_core, due 30 Sep |
 | `swing_velocity_profile` | half_sine | text | decided | D145 |
 | `theta_2_neutral_deg` | 40.0000 | deg | **PROVISIONAL** | D70, D71 |
-| `theta_3_deg` | 0.0000 | deg | **SURROGATE** | D160, PROJECT_02 §2, §3 |
+| `theta_3_deg` | -30.0000 | deg | **SURROGATE** | D160, PROJECT_02 §2, §3 |
 | `tibia_length_mm` | 90.0000 | mm | **SURROGATE** | D160, PROJECT_02 §3 |
 | `torque_margin` | - | ratio | **BLOCKED** | Coordination ruling required. |
 | `update_rate_hz` | 50.0000 | Hz | decided | PROJECT_01 §5.1 |
 
 ## Notes
+
+**`beta_mount_deg`** - Frame yaw of each coxa axis, six values. D23 keeps this SEPARATE from beta_neutral_deg. Setting it equal to beta_neutral is exactly the D23 error, so no surrogate is offered here. The fourteen sweep outputs do not use it; only the body<->leg transform does.
 
 **`body_bob_budget_mm`** - Peak-to-peak. This, not servo torque, is what limits stride.
 
@@ -70,6 +84,8 @@ No code may proceed past them with a guessed number.
 **`coxa_length_mm`** - L1. PROJECT_02 §3 declares L2 and L3 unknown until measured but is silent on L1. QUESTION RAISED WITH COORDINATION: is L1 also unknown? Treated as surrogate until ruled.
 
 **`coxa_positions_mm`** - SUPERSEDED IN PRINCIPLE. PROJECT_04 §2 states this table was derived for a body plate that no longer exists. Awaiting measurement of the Yeahbot frame. Two open questions raised with coordination: (a) 56.57 is given to 2 dp but D147 requires 4 dp; if the intent is 80/sqrt(2) the value is 56.5685. (b) whether the Yeahbot frame is even hexagonal in this arrangement.
+
+**`dtheta_peak_deg_s`** - Peak joint rate the swing profile is scaled to. The no-load figure standing in for a loaded one. Sweep outputs 12-14 scale linearly with this, so it is emitted alongside them (D62) and the ratios across duty are what survive, not the absolutes.
 
 **`duty_factor`** - By decision, exposed as config.
 
@@ -101,8 +117,9 @@ No code may proceed past them with a guessed number.
 
 **`theta_2_neutral_deg`** - Femur pitch at mid-stance. A solve variable with a floor, not a free choice.
 
-**`theta_3_deg`** - Fixed tibia angle. PROJECT_02 §2 requires this to be a configuration field with a default, NOT an absent joint and NOT a hard-coded zero. The 0.0 here is a surrogate default awaiting measurement; it is a config value that the guard mutates, which is exactly what '#define THETA3 0' would not be.
+**`theta_3_deg`** - Fixed tibia angle. PROJECT_02 §2 requires a configuration field with a default, NOT an absent joint and NOT a hard-coded zero.
+THE SURROGATE IS DELIBERATELY NON-ZERO. psi = atan2(L3*sin(theta3), L2 + L3*cos(theta3)) is zero whenever theta3 is zero, whatever L2 and L3 are. A zero surrogate therefore collapses the three-member leg onto the legacy two-member case in every test that uses this table, hiding the theta2-vs-Theta distinction the algorithm workstream names as the single most likely error in the sweep runner. -30.0 is arbitrary and claims nothing; it exists so the psi path is exercised. Replace on measurement.
 
 **`tibia_length_mm`** - L3. Frame's tibia member, unknown until measured. Surrogate equal to the femur surrogate purely so that the two are visibly arbitrary and neither looks measured.
 
-**`torque_margin`** - QUESTION RAISED: PROJECT_04 §2's figures (2.15 kg x 93.0 mm = 19.9950 kg*cm against a 20.0 kg*cm stall) imply a margin of 0.99975, i.e. none. A servo cannot run continuously at stall. The torque invariant is stall_torque_kgcm * torque_margin and a_eff_max is that divided by mass - both computed, never stored.
+**`torque_margin`** - hex_config.h calls this margin_factor and rejects margin_factor < 1, so it is a DIVISOR on the available torque, not a multiplier - the invariant is tau_peak * margin_factor <= tau_servo_kgcm. The 21 Aug note to coordination framed it as a multiplier; that framing is withdrawn. Algorithm WS §4: leave unset rather than guessing, because a wrong surrogate that quietly passes is worse than a missing one that fails validation.

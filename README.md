@@ -15,14 +15,18 @@ contains, so far, only its foundation. What is here:
 
 | Component | State |
 |---|---|
-| Constant table + loader | working, 18 tests |
+| Constant table + loader | working |
 | Repository, build, CI | working |
-| Hard-coded-constant guard | wired, **not yet executing** — needs the sweep runner |
-| `ik_core` (C99, FK/IK) | **not written** — algorithm workstream |
-| `gait_core` (C99, tripod gait) | **not written** — algorithm workstream |
-| Python bindings | **not written** |
-| Sweep runner | **not written** |
+| Derivation and the fourteen sweep outputs | working, checked against externally supplied figures |
+| Hard-coded-constant guard | **executing** — 8 constants, each with a reasoned output footprint |
+| The three swing guards | **executing** across 9 (stride, duty) points |
+| `ik_core` / `gait_core` headers | received — `core/include/` |
+| `ik_core.c`, `hex_config.c` | due 27 Aug — algorithm workstream |
+| `gait_core` | due 30 Sep — algorithm workstream |
+| Python bindings to the C source | **not written** — next |
 | Visualiser | **not written** |
+
+**71 tests passing, 0 skipped.**
 
 Nothing in this README claims work that has not been done.
 
@@ -84,16 +88,18 @@ python -m pytest tests/ -v
 python -m sim.emit_constants_table
 ```
 
-**18 passing, 4 skipped.** The skips are the hard-coded-constant guard,
-which cannot run until the sweep runner exists. They are skips rather than passes
-so that the suite never reports a guard as covered when it has not executed.
+Tested on Python 3.14 with pytest 9. `pyproject.toml` pins the module search
+path so behaviour does not depend on the pytest version.
+
+**71 passing, 0 skipped.**
 
 ---
 
 ## Layout
 
 ```
-core/        C99 — ik_core, gait_core. Algorithm workstream owns this. Do not edit.
+core/include/  ik_core.h, hex_config.h — the frozen API. Algorithm workstream owns this
+core/          C99 sources. Algorithm workstream owns this. Do not edit.
 bindings/    Python bindings to the same C source — not a reimplementation
 sim/         Constant loader, sweep runner, visualiser
 tests/       Unit tests and the guards
@@ -106,3 +112,30 @@ config/      hexapod.json — the single source of truth
 ## Licence
 
 Not yet chosen.
+
+
+---
+
+## Two computation paths, deliberately
+
+`config/hexapod.json` has two consumers and they are not interchangeable:
+
+```
+config/hexapod.json
+   |
+   +-- sim/constants.py  --> double --> derivation, the fourteen outputs, emitted tables
+   |
+   +-- the caller        --> hex_config_t (float) --> ik_core, gait_core at 50 Hz
+```
+
+`hex_config_t` is `float` because the frozen API is `float` and the target is an
+ESP32-S3. Single precision does not reliably carry the four decimal places the
+precision convention requires on a 100 mm quantity, so the analysis path reads the
+JSON in double and never goes through C.
+
+That separation is only safe if the two are checked against each other, which is
+what `tests/test_c_agreement.py` will do once `hex_config.c` lands.
+
+Neither path hard-codes anything. The cores ship no default configuration and
+there is no `hex_config_default()` — a core with no defaults cannot run on a stale
+constant, because it cannot run at all without being told the constants.

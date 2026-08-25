@@ -1,0 +1,7 @@
+[tool.pytest.ini_options]
+# Put the repository root on sys.path explicitly so that `from sim import ...`
+# resolves the same way on every pytest version. Without this, the tests rely on
+# pytest's rootdir-insertion behaviour, which has changed across major versions -
+# it worked by accident on pytest 7 and 8 and should not be trusted on 9.
+pythonpath = ["."]
+testpaths = ["tests"]
