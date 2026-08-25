@@ -78,8 +78,11 @@ BASE = {
     "coxa_length_mm": 50.0, "femur_length_mm": 90.0, "tibia_length_mm": 90.0,
     "theta_3_deg": -30.0, "theta_2_neutral_deg": 40.0, "swing_clearance_mm": 15.0,
     "payload_mass_kg": 2.15, "dtheta_peak_deg_s": 375.0,
-    "swing_velocity_profile": "half_sine",
+    "swing_velocity_profile": "half_sine", "tripod_support_legs": 3,
+    "stall_torque_kgcm": 20.0, "torque_margin": 2.5,
+    "nominal_stride_mm": 60.0, "coxa_length_mm_": None,
 }
+del BASE["coxa_length_mm_"]
 
 
 @pytest.mark.parametrize("name", sorted(GUARDED))
@@ -111,15 +114,31 @@ def test_footprint_is_exactly_what_the_expressions_predict(name):
             name, expected_untouched, actual_untouched))
 
 
+def test_psi_is_non_zero_at_the_guard_configuration():
+    """COREDROP_02 §4. At theta3 == 0, theta_nom_deg is LEGITIMATELY independent of L2
+    because psi is identically zero - so the guard fires correctly but cannot tell a
+    hard-coded constant from a genuinely insensitive output. If a future edit returns
+    theta_3_deg to 0.0, fail here loudly rather than silently lose a column."""
+    d = D.derive(Table(BASE))
+    assert abs(d.psi_deg) > 1e-9, (
+        "psi is zero at the guard configuration, so the guard cannot distinguish a "
+        "baked-in constant from an output with no sensitivity to the perturbed parameter")
+
+    k = C.load()
+    assert abs(D.derive(k).psi_deg) > 1e-9, "psi is zero in config/hexapod.json"
+
+
 def test_every_guarded_name_exists_in_the_real_table():
     """A typo in GUARDED would silently disarm the guard."""
     k = C.load()
-    for name in list(GUARDED) + ["command_step_deg"]:
+    for name in list(GUARDED) + ["command_step_deg", "joint_accuracy_deg"]:
         assert name in k.names(), "GUARDED names '{}' but no such constant exists".format(name)
 
 
-def test_command_step_is_the_post_project_04_value():
-    """PROJECT_04 §4. It does not enter the geometric outputs, so it is guarded
-    against its own value until the quantisation path exists."""
+def test_quantisation_members_are_present_and_live():
+    """PROJECT_07 §3 gives the guard a fourth member, joint_accuracy_deg. Neither it
+    nor command_step_deg enters the fourteen geometric outputs, so both are guarded
+    against their values until the quantisation path exists."""
     k = C.load()
-    assert k.value("command_step_deg") == 0.3
+    assert k.value("command_step_deg") == 0.1350
+    assert k.value("joint_accuracy_deg") == 0.2400

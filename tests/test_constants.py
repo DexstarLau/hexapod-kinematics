@@ -61,16 +61,20 @@ def test_unspecified_constants_raise_instead_of_returning_none():
             k.value(name)
 
 
-def test_project_02_geometry_is_applied():
-    """Replaces the 21 Aug blocker test. PROJECT_02 arrived and defined L3 and theta_3
-    as configuration fields with surrogate defaults - not absent, not hard-coded zeros."""
+def test_d227_measured_geometry_is_applied():
+    """The link lengths stopped being surrogates on 24 August. D227 from the D197
+    STEP model. The old L1 = 50 seed was 19.0% wrong."""
     k = C.load()
     assert k.value("members_per_leg") == 3
     assert k.value("controlled_dof_per_leg") == 2
-    assert k.status("tibia_length_mm") == "surrogate"
+    assert k.value("coxa_length_mm") == 42.0
+    assert k.value("femur_length_mm") == 74.2
+    assert k.value("tibia_length_mm") == 112.6231
+    assert round(sum([42.0, 74.2, 112.6231]), 4) == 228.8231
+    for name in ("coxa_length_mm", "femur_length_mm", "tibia_length_mm",
+                 "coxa_positions_mm", "beta_mount_deg"):
+        assert k.status(name) == "measured"
     assert k.status("theta_3_deg") == "surrogate"
-    assert k.value("servo_count_actuated") == 12
-    assert k.value("servo_count_installed") == 18
 
 
 def test_unknown_name_raises():
@@ -83,17 +87,21 @@ def test_unknown_name_raises():
 
 # ---------------------------------------------------- values that must be right
 
-def test_command_step_is_the_post_project_04_value():
-    """PROJECT_04 §2. Anything still holding 0.4392 is stale."""
+def test_the_quantisation_constant_is_two_constants():
+    """D240. PROJECT_04 §2's 0.3000 is dead and so is the PCA9685 0.4392, in every
+    form. The grid is 0.1350; the datasheet accuracy is 0.2400 and IS THE BINDING
+    LIMIT, because 0.2400 / 0.1350 = 1.7778 counts means the grid never binds."""
     k = C.load()
-    assert k.value("command_step_deg") == 0.3
+    assert k.value("command_step_deg") == 0.1350
+    assert k.value("joint_accuracy_deg") == 0.2400
+    assert round(k.value("joint_accuracy_deg") / k.value("command_step_deg"), 4) == 1.7778
 
 
 def test_all_six_legs_are_present_in_every_per_leg_table():
     """D23.3: a single-leg derivation is an estimate, not a result."""
     k = C.load()
     expected = {"R1", "R2", "R3", "L1", "L2", "L3"}
-    for name in ("coxa_positions_mm", "leg_neutral_direction_deg"):
+    for name in ("coxa_positions_mm", "beta_mount_deg", "beta_neutral_deg"):
         assert set(k.value(name)) == expected, "{} does not cover all six legs".format(name)
 
 
@@ -140,8 +148,8 @@ def test_surrogates_are_tracked_and_stamped():
     """A result built on surrogates must be able to say so. PROJECT_01 rule 6."""
     k = C.load()
     assert k.stamp() == "no surrogate constants used"
-    k.value("femur_length_mm")
-    assert "femur_length_mm" in k.surrogates_read()
+    k.value("theta_3_deg")
+    assert "theta_3_deg" in k.surrogates_read()
     assert k.stamp().startswith("SURROGATE VALUES USED")
 
 
@@ -166,4 +174,9 @@ def test_no_derived_torque_ceiling_is_stored():
     not a ceiling (PROJECT_02 §3). It must be computed."""
     k = C.load()
     assert "a_eff_max_mm" not in k.names()
-    assert k.status("torque_margin") == "unspecified"
+    # D209 rules margin_factor = 2.5000 and PROJECT_05 §3 says "set a_eff_max_mm =
+    # 111.6279". The margin is set; the ceiling is NOT stored. It is
+    # tau_servo*10*legs/(mass*margin) and all three inputs are live - mass is
+    # unmeasured and the margin reverts to 3.0000 automatically on two D190 triggers.
+    # Checked as a figure in tests/test_torque.py instead. Filed to coordination.
+    assert k.value("torque_margin") == 2.5

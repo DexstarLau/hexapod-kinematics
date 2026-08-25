@@ -176,10 +176,21 @@ def sweep_point(k, stride_mm, duty_factor):
         ("coxa_sweep_deg", coxa_sweep),
         ("bob_mm", d.body_height_mm - R * math.sin(math.radians(theta_extreme))),
         ("a_eff_extreme_mm", a_eff_extreme),
-        ("tau_femur_peak_kgcm", k.value("payload_mass_kg") * a_eff_extreme / 10.0),
+        # D208: the TRIPOD SHARE, not whole-robot mass. Single-leg support needs five
+        # feet off the ground - a fault, not a transient - so the whole-mass product is
+        # retired as a constraint and emitted as a diagnostic instead (see below).
+        ("tau_femur_peak_kgcm",
+         k.value("payload_mass_kg") / k.value("tripod_support_legs") * a_eff_extreme / 10.0),
         ("swing_duration_ms", swing_ms),
         ("cycle_duration_ms", cycle_ms),
         ("body_speed_mm_s", 1000.0 * stride_mm / cycle_ms),
+    ])
+
+    # D208 diagnostic. NOT one of the fourteen: it is reported, never asserted on.
+    # At the D209 ceiling it reads 24.0000 kg*cm, 1.2000x stall, and that is not a
+    # failure - the vendor's own posture exceeds the same form by 1.3487x while walking.
+    diagnostics = OrderedDict([
+        ("tau_femur_singleleg_kgcm", k.value("payload_mass_kg") * a_eff_extreme / 10.0),
     ])
 
     # The trace exists so that the span guard can recompute output 6 from the
@@ -198,9 +209,108 @@ def sweep_point(k, stride_mm, duty_factor):
         ("swing_peak_factor", peak_factor),
         ("dtheta_peak_deg_s", dtheta_peak),
     ])
+    trace.update(diagnostics)
     return row, d, trace
 
 
 def sweep(k, strides, duties):
     """Every (stride, duty) combination. Returns a list of (row, derived, trace)."""
     return [sweep_point(k, st, du) for st in strides for du in duties]
+
+
+def coincidence_clearance_mm(k):
+    """The swing clearance at which theta_span_deg and femur_travel_swing_deg coincide.
+
+    D125 withdrew a guard asserting these two are never equal. They ARE equal at an
+    entirely ordinary geometry, and in the collapse the withdrawn guard was written
+    to catch they are maximally unequal. D211 gives the closed form:
+
+        c = h0 - R*sin(2*Theta_extreme - Theta_0)
+
+    D211's binding rule, which this function exists to respect:
+    AN INTERMEDIATE QUANTITY IS NEVER ROUNDED BEFORE IT IS MULTIPLIED. Rounding
+    Theta_extreme to 4 dp before the 2x gives 9.7483; at 3 dp it gives 9.7486; the
+    true value is 9.74822449. The 2x amplifier has produced three errors in this one
+    quantity across the project's history.
+    """
+    d = derive(k)
+    R = d.rigid_len_mm
+    L1 = k.value("coxa_length_mm")
+    s_half = k.value("nominal_stride_mm") / 2.0
+    theta_extreme = math.degrees(
+        math.acos((math.sqrt(d.r_nom_mm ** 2 + s_half ** 2) - L1) / R))
+    return d.body_height_mm - R * math.sin(
+        math.radians(2.0 * theta_extreme - d.theta_nom_deg))
+
+
+def a_eff_max_mm(k):
+    """The moment-arm ceiling. D209 quotes 111.6279 mm; it is NOT stored.
+
+        tau_femur_peak * margin_factor <= tau_servo
+        (m / legs) * a_eff / 10 * margin <= tau_servo
+
+    It moves with the servo torque, the mass and the margin, all three of which are
+    live: mass is unmeasured, and the margin reverts to 3.0000 automatically if D190
+    measures loaded torque below 16 kg*cm or mass above 2.30 kg. Storing the number
+    is exactly the defect the hard-coded-constant guard exists to catch.
+    """
+    return (k.value("stall_torque_kgcm") * 10.0 * k.value("tripod_support_legs")
+            / (k.value("payload_mass_kg") * k.value("torque_margin")))
+
+
+# ---------------------------------------------------------------- body frame
+
+LEG_ORDER = ("R1", "R2", "R3", "L1", "L2", "L3")
+
+
+def body_to_leg(k, leg, bx_mm, by_mm, bz_mm):
+    """Body frame -> leg frame, double precision analysis path.
+
+    Mirrors ik_body_to_leg. beta_neutral_deg is NOT applied: it is a command
+    offset, not a frame rotation, and folding the two together is the D23 error.
+
+    Body frame is X forward, Y left, Z up, origin at the coxa centroid (D227).
+    """
+    pos = k.value("coxa_positions_mm")[leg]
+    beta = math.radians(k.value("beta_mount_deg")[leg])
+    dx, dy = bx_mm - pos[0], by_mm - pos[1]
+    c, s = math.cos(beta), math.sin(beta)
+    return (c * dx + s * dy, -s * dx + c * dy, bz_mm)
+
+
+def foot_position_body(k, leg, theta1_deg, theta2_deg):
+    """Foot position in the BODY frame, from the two commanded joint angles.
+
+    The leg lies along beta_mount_deg when the commanded coxa angle equals
+    beta_neutral_deg, so the yaw actually applied is
+    beta_mount + (theta1 - beta_neutral).
+    """
+    d = derive(k)
+    R = d.rigid_len_mm
+    theta = math.radians(theta2_deg + d.psi_deg)
+    reach = k.value("coxa_length_mm") + R * math.cos(theta)
+    height = -R * math.sin(theta)
+
+    yaw = math.radians(k.value("beta_mount_deg")[leg]
+                       + theta1_deg - k.value("beta_neutral_deg")[leg])
+    pos = k.value("coxa_positions_mm")[leg]
+    return (pos[0] + reach * math.cos(yaw),
+            pos[1] + reach * math.sin(yaw),
+            height)
+
+
+def corner_legs(k):
+    """The four legs whose coxa axis is NOT radial from the body centre.
+
+    Solved for, not listed: a leg is a corner leg when |beta_mount| differs from
+    its own position angle. D227 measures that difference at 13.3626 deg on four
+    legs and 0.03 deg on the middle two.
+    """
+    out = []
+    for leg in LEG_ORDER:
+        x, y = k.value("coxa_positions_mm")[leg]
+        position_angle = math.degrees(math.atan2(y, x))
+        offset = k.value("beta_mount_deg")[leg] - position_angle
+        if abs(offset) > 1.0:
+            out.append(leg)
+    return out

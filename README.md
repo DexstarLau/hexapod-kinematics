@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml/badge.svg)](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue)
-![Tests](https://img.shields.io/badge/tests-71%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-89%20passing-brightgreen)
 
 Forward kinematics, inverse kinematics and a tripod gait engine for a six-legged
 walking robot, with a Python reference bound to the same C source, a test suite,
@@ -20,9 +20,11 @@ contains, so far, only its foundation. What is here:
 | Component | State |
 |---|---|
 | Constant table + loader | working |
+| Torque invariant, tripod share | working, margin ruled at 2.5000 |
 | Repository, build, CI | working |
 | Derivation and the fourteen sweep outputs | working, checked against externally supplied figures |
 | Hard-coded-constant guard | **executing** — 8 constants, each with a reasoned output footprint |
+| Corner-leg yaw guard | **executing** — catches a radial leg model on four legs of six |
 | The three swing guards | **executing** across 9 (stride, duty) points |
 | `ik_core` / `gait_core` headers | received — `core/include/` |
 | `ik_core.c`, `hex_config.c` | due 27 Aug — algorithm workstream |
@@ -30,7 +32,7 @@ contains, so far, only its foundation. What is here:
 | Python bindings to the C source | **not written** — next |
 | Visualiser | **not written** |
 
-**71 tests passing, 0 skipped.**
+**89 tests passing, 0 skipped.**
 
 Nothing in this README claims work that has not been done.
 
@@ -75,12 +77,15 @@ That last row is the important one. A constant with no value does not quietly
 become `None` and does not fall back to a default. It stops the program and says
 which document is missing.
 
-Currently surrogate: `coxa_length_mm`, `femur_length_mm`, `tibia_length_mm`,
-`theta_3_deg`, `payload_mass_kg`. Every one is a frame dimension nobody has
-measured. `Constants.stamp()` reports which of them fed any given result, so no
-output built on a surrogate can be presented as a measurement.
+The leg geometry stopped being guesswork on 24 August: `L1 = 42.0000`,
+`L2 = 74.2000`, `L3 = 112.6231`, the six coxa positions and the six `beta_mount`
+yaws all come from the manufacturer's CAD model and carry status `measured`.
 
-Currently blocked: `servo_speed_loaded_deg_s`, `torque_margin`.
+Currently surrogate: `theta_3_deg`, `dtheta_peak_deg_s`. `Constants.stamp()`
+reports which of them fed any given result, so no output built on a surrogate can
+be presented as a measurement.
+
+Currently blocked: `servo_speed_loaded_deg_s`, `stale_ramp_ms`, `swing_eps_mm_s`.
 
 ---
 
@@ -95,7 +100,7 @@ python -m sim.emit_constants_table
 Tested on Python 3.14 with pytest 9. `pyproject.toml` pins the module search
 path so behaviour does not depend on the pytest version.
 
-**71 passing, 0 skipped.**
+**89 passing, 0 skipped.**
 
 ---
 

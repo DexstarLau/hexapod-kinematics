@@ -27,7 +27,8 @@ LEGACY = FakeTable(
     coxa_length_mm=50.0, femur_length_mm=90.0, tibia_length_mm=0.0,
     theta_3_deg=0.0, theta_2_neutral_deg=40.0, swing_clearance_mm=15.0,
     payload_mass_kg=2.15, dtheta_peak_deg_s=375.0,
-    swing_velocity_profile="half_sine",
+    swing_velocity_profile="half_sine", tripod_support_legs=3,
+    stall_torque_kgcm=20.0, torque_margin=2.5, nominal_stride_mm=60.0,
 )
 
 
