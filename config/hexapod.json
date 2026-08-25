@@ -1,20 +1,29 @@
 {
   "_schema": {
     "description": "Single source of truth for every physical constant in the hexapod model. Nothing in core/, bindings/, sim/ or tests/ may hard-code a value that appears here.",
-    "required_fields": ["value", "unit", "status", "source"],
+    "required_fields": [
+      "value",
+      "unit",
+      "status",
+      "source"
+    ],
     "status_meanings": {
       "decided": "Fixed by a numbered decision or a vendor specification. Changes only by a new decision.",
       "measured": "Produced by a hardware-workstream measurement campaign. Carries an uncertainty.",
       "provisional": "A working number standing in for a measurement that has not happened. Will change.",
-      "unspecified": "No authoritative value exists yet. Reading this raises ConstantError by design."
+      "unspecified": "No authoritative value exists yet. Reading this raises ConstantError by design.",
+      "surrogate": "No measurement exists. This number exists ONLY so that code can run. It carries no claim about the physical machine. Any output derived from it must be stamped with the surrogates that fed it."
     },
     "precision_convention": "D147 - double precision throughout, no intermediate rounding. Angles 4 dp in degrees, lengths 4 dp in millimetres.",
     "platform": "Yeahbot hexapod (assembled kit), PROJECT_04 §1",
     "last_updated": "2026-08-21",
-    "binding_documents": ["PROJECT_01", "PROJECT_04"],
-    "missing_documents": ["PROJECT_02", "PROJECT_03"]
+    "binding_documents": [
+      "PROJECT_01",
+      "PROJECT_02",
+      "PROJECT_03",
+      "PROJECT_04"
+    ]
   },
-
   "leg_count": {
     "value": 6,
     "unit": "count",
@@ -26,14 +35,14 @@
     "unit": "count",
     "status": "decided",
     "source": "D3",
-    "note": "Coxa yaw + femur pitch. The tibia servo exists on this platform but is held at a constant commanded angle theta_3_deg (D199)."
+    "note": "Coxa yaw + femur pitch actuated. The tibia member is installed and held at fixed theta_3_deg. v2 makes theta_3 a solve variable with no interface change (PROJECT_02 §2)."
   },
   "servo_count_installed": {
     "value": 18,
     "unit": "count",
     "status": "decided",
-    "source": "PROJECT_04 §1",
-    "note": "Supersedes the 12x DS3225MG of D48. Platform ships 18x ZX20D serial bus servos, 3 per leg."
+    "source": "PROJECT_02 §3, PROJECT_04 §1",
+    "note": "18 x ZX20D serial bus servos, 3 per leg. 12 actuated, 6 held at theta_3."
   },
   "servo_model": {
     "value": "ZX20D",
@@ -42,34 +51,33 @@
     "source": "PROJECT_04 §1",
     "note": "Serial bus servo, 24-channel control board."
   },
-
   "coxa_length_mm": {
     "value": 50.0,
     "unit": "mm",
-    "status": "provisional",
-    "source": "D34, D71",
-    "note": "Named L1 in PROJECT_01 §5.1. Renamed here to avoid collision with leg identifier 'L1'. Derived for the pre-PROJECT_04 frame; awaiting measurement of the Yeahbot frame."
+    "status": "surrogate",
+    "source": "PROJECT_02 §3 (superseded D34/D49/D71)",
+    "note": "L1. PROJECT_02 §3 declares L2 and L3 unknown until measured but is silent on L1. QUESTION RAISED WITH COORDINATION: is L1 also unknown? Treated as surrogate until ruled."
   },
   "femur_length_mm": {
     "value": 90.0,
     "unit": "mm",
-    "status": "provisional",
-    "source": "D34, D49, D71",
-    "note": "Named L2 in PROJECT_01 §5.1. Ceiling 97.6 mm. Derived for the pre-PROJECT_04 frame; awaiting measurement."
+    "status": "surrogate",
+    "source": "PROJECT_02 §3 (superseded D34/D49/D71)",
+    "note": "L2. PROJECT_02 §3: frame's femur member, unknown until measured. The old 90.0 mm was derived for a frame that no longer exists; it survives here only as a number that lets code run."
   },
   "tibia_length_mm": {
-    "value": null,
+    "value": 90.0,
     "unit": "mm",
-    "status": "unspecified",
-    "source": "PROJECT_04 §3 refers to L3; the defining document is PROJECT_02, which MP-WS has not received.",
-    "note": "BLOCKER. PROJECT_01 §5.1 modelled a rigid tibia with no L3. PROJECT_02 introduced one. No value may be invented here."
+    "status": "surrogate",
+    "source": "D160, PROJECT_02 §3",
+    "note": "L3. Frame's tibia member, unknown until measured. Surrogate equal to the femur surrogate purely so that the two are visibly arbitrary and neither looks measured."
   },
   "theta_3_deg": {
-    "value": null,
+    "value": 0.0,
     "unit": "deg",
-    "status": "unspecified",
-    "source": "D199, via PROJECT_04 §3; default value defined in PROJECT_02, not received.",
-    "note": "BLOCKER. Configuration parameter with a fixed default. v1 -> v2 is a config change, no rewiring."
+    "status": "surrogate",
+    "source": "D160, PROJECT_02 §2, §3",
+    "note": "Fixed tibia angle. PROJECT_02 §2 requires this to be a configuration field with a default, NOT an absent joint and NOT a hard-coded zero. The 0.0 here is a surrogate default awaiting measurement; it is a config value that the guard mutates, which is exactly what '#define THETA3 0' would not be."
   },
   "theta_2_neutral_deg": {
     "value": 40.0,
@@ -78,15 +86,32 @@
     "source": "D70, D71",
     "note": "Femur pitch at mid-stance. A solve variable with a floor, not a free choice."
   },
-
   "coxa_positions_mm": {
     "value": {
-      "R1": [100.0, -56.57],
-      "R2": [0.0, -80.0],
-      "R3": [-100.0, -56.57],
-      "L1": [100.0, 56.57],
-      "L2": [0.0, 80.0],
-      "L3": [-100.0, 56.57]
+      "R1": [
+        100.0,
+        -56.57
+      ],
+      "R2": [
+        0.0,
+        -80.0
+      ],
+      "R3": [
+        -100.0,
+        -56.57
+      ],
+      "L1": [
+        100.0,
+        56.57
+      ],
+      "L2": [
+        0.0,
+        80.0
+      ],
+      "L3": [
+        -100.0,
+        56.57
+      ]
     },
     "unit": "mm",
     "status": "provisional",
@@ -107,7 +132,6 @@
     "source": "D15",
     "note": "Lateral neutral. beta_mount and beta_neutral stay separate (D23) - this table is beta_neutral only."
   },
-
   "nominal_stride_mm": {
     "value": 60.0,
     "unit": "mm",
@@ -154,7 +178,6 @@
     "status": "decided",
     "source": "PROJECT_01 §5.1"
   },
-
   "command_step_deg": {
     "value": 0.3,
     "unit": "deg",
@@ -183,19 +206,12 @@
     "source": "PROJECT_04 §2",
     "note": "At 7.4 V."
   },
-  "a_eff_max_mm": {
-    "value": 93.0,
-    "unit": "mm",
-    "status": "decided",
-    "source": "PROJECT_04 §2",
-    "note": "Effective moment arm ceiling at 2.15 kg, derived from the 20 kg*cm stall torque."
-  },
   "payload_mass_kg": {
     "value": 2.15,
     "unit": "kg",
-    "status": "provisional",
+    "status": "surrogate",
     "source": "PROJECT_04 §2",
-    "note": "The mass the a_eff_max_mm figure was taken at. Unweighed."
+    "note": "Unweighed. The mass PROJECT_04 §2's a_eff figure was quoted at."
   },
   "pack_voltage_v": {
     "value": 7.4,
@@ -203,5 +219,45 @@
     "status": "decided",
     "source": "PROJECT_04 §1",
     "note": "5200 mAh pack."
+  },
+  "members_per_leg": {
+    "value": 3,
+    "unit": "count",
+    "status": "decided",
+    "source": "D160, PROJECT_02 §1",
+    "note": "Coxa, femur, tibia. Mechanically three-segment, kinematically two-DOF."
+  },
+  "servo_count_actuated": {
+    "value": 12,
+    "unit": "count",
+    "status": "decided",
+    "source": "PROJECT_02 §3"
+  },
+  "servo_count_bought": {
+    "value": 20,
+    "unit": "count",
+    "status": "decided",
+    "source": "PROJECT_02 §3",
+    "note": "2 spare."
+  },
+  "torque_margin": {
+    "value": null,
+    "unit": "ratio",
+    "status": "unspecified",
+    "source": "Coordination ruling required.",
+    "note": "QUESTION RAISED: PROJECT_04 §2's figures (2.15 kg x 93.0 mm = 19.9950 kg*cm against a 20.0 kg*cm stall) imply a margin of 0.99975, i.e. none. A servo cannot run continuously at stall. The torque invariant is stall_torque_kgcm * torque_margin and a_eff_max is that divided by mass - both computed, never stored."
+  },
+  "_expectations": {
+    "_note": "Predicted OUTPUTS from PROJECT_02 §3, for validation only. Loading these as inputs is a test failure. Every figure is unmeasured.",
+    "standing_height_mm": {
+      "low": 140.0,
+      "high": 170.0,
+      "source": "PROJECT_02 §3"
+    },
+    "body_bob_at_nominal_stride_mm": {
+      "low": 1.7,
+      "high": 1.9,
+      "source": "PROJECT_02 §3"
+    }
   }
 }

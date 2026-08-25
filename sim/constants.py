@@ -22,7 +22,7 @@ from pathlib import Path
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "hexapod.json"
 
 REQUIRED_FIELDS = ("value", "unit", "status", "source")
-VALID_STATUS = ("decided", "measured", "provisional", "unspecified")
+VALID_STATUS = ("decided", "measured", "provisional", "surrogate", "unspecified")
 
 
 class ConstantError(Exception):
@@ -38,6 +38,7 @@ class Constants:
 
     def __init__(self, table):
         self._table = table
+        self._surrogates_read = set()
 
     def names(self):
         """Every constant name, sorted. Metadata keys starting with '_' are excluded."""
@@ -63,7 +64,25 @@ class Constants:
                 "  source: {}\n"
                 "  note:   {}".format(name, entry["source"], entry.get("note", "-"))
             )
+        if entry["status"] == "surrogate":
+            self._surrogates_read.add(name)
         return entry["value"]
+
+    def surrogates_read(self):
+        """Every surrogate this object has actually handed out.
+
+        A sweep runner calls this after producing a result table and stamps the
+        names onto the output. A number that came from a surrogate is not a
+        measurement and no report may present it as one.
+        """
+        return sorted(self._surrogates_read)
+
+    def stamp(self):
+        """One-line provenance stamp for any emitted result."""
+        used = self.surrogates_read()
+        if not used:
+            return "no surrogate constants used"
+        return "SURROGATE VALUES USED - NOT A MEASUREMENT: " + ", ".join(used)
 
     def __getitem__(self, name):
         return self.value(name)

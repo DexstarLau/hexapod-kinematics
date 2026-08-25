@@ -61,11 +61,16 @@ def test_unspecified_constants_raise_instead_of_returning_none():
             k.value(name)
 
 
-def test_the_two_known_blockers_are_still_blocked():
-    """Delete this test the day PROJECT_02 arrives and these get real values."""
+def test_project_02_geometry_is_applied():
+    """Replaces the 21 Aug blocker test. PROJECT_02 arrived and defined L3 and theta_3
+    as configuration fields with surrogate defaults - not absent, not hard-coded zeros."""
     k = C.load()
-    assert k.status("tibia_length_mm") == "unspecified"
-    assert k.status("theta_3_deg") == "unspecified"
+    assert k.value("members_per_leg") == 3
+    assert k.value("controlled_dof_per_leg") == 2
+    assert k.status("tibia_length_mm") == "surrogate"
+    assert k.status("theta_3_deg") == "surrogate"
+    assert k.value("servo_count_actuated") == 12
+    assert k.value("servo_count_installed") == 18
 
 
 def test_unknown_name_raises():
@@ -127,3 +132,38 @@ def test_generated_table_prints_four_decimal_places():
     assert format_value(5.0) == "5.0000"
     assert format_value(93.0) == "93.0000"
     assert format_value(0.3) == "0.3000"
+
+
+# ---------------------------------------------------- surrogate machinery
+
+def test_surrogates_are_tracked_and_stamped():
+    """A result built on surrogates must be able to say so. PROJECT_01 rule 6."""
+    k = C.load()
+    assert k.stamp() == "no surrogate constants used"
+    k.value("femur_length_mm")
+    assert "femur_length_mm" in k.surrogates_read()
+    assert k.stamp().startswith("SURROGATE VALUES USED")
+
+
+def test_decided_constants_do_not_pollute_the_stamp():
+    k = C.load()
+    k.value("command_step_deg")
+    k.value("update_rate_hz")
+    assert k.stamp() == "no surrogate constants used"
+
+
+def test_expectations_are_not_loadable_as_constants():
+    """_expectations holds predicted OUTPUTS. Reading one as an input is the error
+    this test exists to make impossible."""
+    k = C.load()
+    assert "_expectations" not in k.names()
+    with pytest.raises(C.ConstantError):
+        k.value("standing_height_mm")
+
+
+def test_no_derived_torque_ceiling_is_stored():
+    """a_eff_max was stored as 93.0 on 21 Aug. It is stall*margin/mass - a hyperbola,
+    not a ceiling (PROJECT_02 §3). It must be computed."""
+    k = C.load()
+    assert "a_eff_max_mm" not in k.names()
+    assert k.status("torque_margin") == "unspecified"

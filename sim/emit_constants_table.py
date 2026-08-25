@@ -19,6 +19,7 @@ BADGE = {
     "decided": "decided",
     "measured": "measured",
     "provisional": "**PROVISIONAL**",
+    "surrogate": "**SURROGATE**",
     "unspecified": "**BLOCKED**",
 }
 
@@ -48,6 +49,20 @@ def render():
     lines.append("Precision: {}  ".format(meta["precision_convention"]))
     lines.append("Last updated: {}".format(meta["last_updated"]))
     lines.append("")
+
+    surrogates = k.with_status("surrogate")
+    if surrogates:
+        lines.append("## Surrogate constants")
+        lines.append("")
+        lines.append("**Nothing below has been measured.** These numbers exist so that code can")
+        lines.append("run. They carry no claim about the physical machine, and any result derived")
+        lines.append("from one is stamped by `Constants.stamp()`.")
+        lines.append("")
+        for name in surrogates:
+            entry = k.entry(name)
+            lines.append("- **`{}`** = {} {} - {}".format(
+                name, format_value(entry["value"]), entry["unit"], entry["source"]))
+        lines.append("")
 
     blocked = k.with_status("unspecified")
     if blocked:
