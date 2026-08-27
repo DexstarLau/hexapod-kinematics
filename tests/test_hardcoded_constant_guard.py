@@ -29,7 +29,7 @@ STRIDE, DUTY = 60.0, 0.5
 # is reasoned from the defining expressions, not read off a previous run.
 GUARDED = {
     # mass appears in output 11 alone
-    "payload_mass_kg": (2.15, 2.60, [
+    "mass_kg": (2.15, 2.60, [
         n for n in ("r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
                     "theta_midswing_deg", "theta_span_deg", "femur_travel_swing_deg",
                     "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm", "swing_duration_ms",
@@ -55,8 +55,8 @@ GUARDED = {
     # the members and both angles reach everything once psi is non-zero
     "femur_length_mm":     (90.0, 97.0, []),
     "tibia_length_mm":     (90.0, 78.0, []),
-    "theta_3_deg":         (-30.0, -12.0, []),
-    "theta_2_neutral_deg": (40.0, 46.0, []),
+    "theta3_deg":         (-30.0, -12.0, []),
+    "theta2_nom_deg": (40.0, 46.0, []),
 }
 
 # command_step_deg is guarded by PROJECT_04 §4 but is an actuator quantisation
@@ -76,11 +76,11 @@ class Table(object):
 
 BASE = {
     "coxa_length_mm": 50.0, "femur_length_mm": 90.0, "tibia_length_mm": 90.0,
-    "theta_3_deg": -30.0, "theta_2_neutral_deg": 40.0, "swing_clearance_mm": 15.0,
-    "payload_mass_kg": 2.15, "dtheta_peak_deg_s": 375.0,
+    "theta3_deg": -30.0, "theta2_nom_deg": 40.0, "swing_clearance_mm": 15.0,
+    "mass_kg": 2.15, "dtheta_peak_deg_s": 375.0,
     "swing_velocity_profile": "half_sine", "tripod_support_legs": 3,
-    "stall_torque_kgcm": 20.0, "torque_margin": 2.5,
-    "nominal_stride_mm": 60.0, "coxa_length_mm_": None,
+    "tau_servo_kgcm": 20.0, "margin_factor": 2.5,
+    "stride_mm": 60.0, "coxa_length_mm_": None,
 }
 del BASE["coxa_length_mm_"]
 
@@ -118,7 +118,7 @@ def test_psi_is_non_zero_at_the_guard_configuration():
     """COREDROP_02 §4. At theta3 == 0, theta_nom_deg is LEGITIMATELY independent of L2
     because psi is identically zero - so the guard fires correctly but cannot tell a
     hard-coded constant from a genuinely insensitive output. If a future edit returns
-    theta_3_deg to 0.0, fail here loudly rather than silently lose a column."""
+    theta3_deg to 0.0, fail here loudly rather than silently lose a column."""
     d = D.derive(Table(BASE))
     assert abs(d.psi_deg) > 1e-9, (
         "psi is zero at the guard configuration, so the guard cannot distinguish a "

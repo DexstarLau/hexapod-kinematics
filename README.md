@@ -81,7 +81,7 @@ The leg geometry stopped being guesswork on 24 August: `L1 = 42.0000`,
 `L2 = 74.2000`, `L3 = 112.6231`, the six coxa positions and the six `beta_mount`
 yaws all come from the manufacturer's CAD model and carry status `measured`.
 
-Currently surrogate: `theta_3_deg`, `dtheta_peak_deg_s`. `Constants.stamp()`
+Currently surrogate: `theta3_deg`, `dtheta_peak_deg_s`. `Constants.stamp()`
 reports which of them fed any given result, so no output built on a surrogate can
 be presented as a measurement.
 

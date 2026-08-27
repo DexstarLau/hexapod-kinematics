@@ -112,7 +112,7 @@ def test_no_intermediate_rounding_before_a_multiplication():
 
     d = D.derive(legacy)
     R, L1 = d.rigid_len_mm, legacy.value("coxa_length_mm")
-    s_half = legacy.value("nominal_stride_mm") / 2.0
+    s_half = legacy.value("stride_mm") / 2.0
     te = math.degrees(math.acos((math.sqrt(d.r_nom_mm ** 2 + s_half ** 2) - L1) / R))
     pre_rounded = d.body_height_mm - R * math.sin(
         math.radians(2.0 * round(te, 4) - d.theta_nom_deg))
@@ -123,10 +123,10 @@ def test_no_intermediate_rounding_before_a_multiplication():
 class _Legacy(object):
     """D211's seed set: L1 = 50, L2 = 90, theta2_nom = 40, half-stride 30, clearance 15."""
     _v = dict(coxa_length_mm=50.0, femur_length_mm=90.0, tibia_length_mm=0.0,
-              theta_3_deg=0.0, theta_2_neutral_deg=40.0, swing_clearance_mm=15.0,
-              nominal_stride_mm=60.0, payload_mass_kg=2.15, dtheta_peak_deg_s=200.0,
+              theta3_deg=0.0, theta2_nom_deg=40.0, swing_clearance_mm=15.0,
+              stride_mm=60.0, mass_kg=2.15, dtheta_peak_deg_s=200.0,
               swing_velocity_profile="half_sine", tripod_support_legs=3,
-              stall_torque_kgcm=20.0, torque_margin=2.5)
+              tau_servo_kgcm=20.0, margin_factor=2.5)
 
     def value(self, name):
         return self._v[name]

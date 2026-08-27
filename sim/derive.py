@@ -79,8 +79,8 @@ def derive(k):
     L1 = k.value("coxa_length_mm")
     L2 = k.value("femur_length_mm")
     L3 = k.value("tibia_length_mm")
-    t3 = math.radians(k.value("theta_3_deg"))
-    t2_nom = k.value("theta_2_neutral_deg")
+    t3 = math.radians(k.value("theta3_deg"))
+    t2_nom = k.value("theta2_nom_deg")
 
     R = math.sqrt(L2 * L2 + L3 * L3 + 2.0 * L2 * L3 * math.cos(t3))
     psi = math.degrees(math.atan2(L3 * math.sin(t3), L2 + L3 * math.cos(t3)))
@@ -180,7 +180,7 @@ def sweep_point(k, stride_mm, duty_factor):
         # feet off the ground - a fault, not a transient - so the whole-mass product is
         # retired as a constraint and emitted as a diagnostic instead (see below).
         ("tau_femur_peak_kgcm",
-         k.value("payload_mass_kg") / k.value("tripod_support_legs") * a_eff_extreme / 10.0),
+         k.value("mass_kg") / k.value("tripod_support_legs") * a_eff_extreme / 10.0),
         ("swing_duration_ms", swing_ms),
         ("cycle_duration_ms", cycle_ms),
         ("body_speed_mm_s", 1000.0 * stride_mm / cycle_ms),
@@ -190,7 +190,7 @@ def sweep_point(k, stride_mm, duty_factor):
     # At the D209 ceiling it reads 24.0000 kg*cm, 1.2000x stall, and that is not a
     # failure - the vendor's own posture exceeds the same form by 1.3487x while walking.
     diagnostics = OrderedDict([
-        ("tau_femur_singleleg_kgcm", k.value("payload_mass_kg") * a_eff_extreme / 10.0),
+        ("tau_femur_singleleg_kgcm", k.value("mass_kg") * a_eff_extreme / 10.0),
     ])
 
     # The trace exists so that the span guard can recompute output 6 from the
@@ -203,7 +203,7 @@ def sweep_point(k, stride_mm, duty_factor):
         ("rigid_len_mm", R),
         ("coxa_length_mm", L1),
         ("psi_deg", d.psi_deg),
-        ("theta2_nom_deg", k.value("theta_2_neutral_deg")),
+        ("theta2_nom_deg", k.value("theta2_nom_deg")),
         ("reach_extreme_mm", reach_extreme),
         ("swing_clearance_mm", clearance),
         ("swing_peak_factor", peak_factor),
@@ -236,7 +236,7 @@ def coincidence_clearance_mm(k):
     d = derive(k)
     R = d.rigid_len_mm
     L1 = k.value("coxa_length_mm")
-    s_half = k.value("nominal_stride_mm") / 2.0
+    s_half = k.value("stride_mm") / 2.0
     theta_extreme = math.degrees(
         math.acos((math.sqrt(d.r_nom_mm ** 2 + s_half ** 2) - L1) / R))
     return d.body_height_mm - R * math.sin(
@@ -254,8 +254,8 @@ def a_eff_max_mm(k):
     measures loaded torque below 16 kg*cm or mass above 2.30 kg. Storing the number
     is exactly the defect the hard-coded-constant guard exists to catch.
     """
-    return (k.value("stall_torque_kgcm") * 10.0 * k.value("tripod_support_legs")
-            / (k.value("payload_mass_kg") * k.value("torque_margin")))
+    return (k.value("tau_servo_kgcm") * 10.0 * k.value("tripod_support_legs")
+            / (k.value("mass_kg") * k.value("margin_factor")))
 
 
 # ---------------------------------------------------------------- body frame

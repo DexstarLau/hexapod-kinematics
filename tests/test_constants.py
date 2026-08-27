@@ -55,7 +55,7 @@ def test_lengths_and_angles_are_double_not_int():
 def test_unspecified_constants_raise_instead_of_returning_none():
     k = C.load()
     unspecified = k.with_status("unspecified")
-    assert unspecified, "expected at least tibia_length_mm and theta_3_deg to be blocked"
+    assert unspecified, "expected at least tibia_length_mm and theta3_deg to be blocked"
     for name in unspecified:
         with pytest.raises(C.ConstantError):
             k.value(name)
@@ -74,7 +74,7 @@ def test_d227_measured_geometry_is_applied():
     for name in ("coxa_length_mm", "femur_length_mm", "tibia_length_mm",
                  "coxa_positions_mm", "beta_mount_deg"):
         assert k.status(name) == "measured"
-    assert k.status("theta_3_deg") == "surrogate"
+    assert k.status("theta3_deg") == "surrogate"
 
 
 def test_unknown_name_raises():
@@ -148,8 +148,8 @@ def test_surrogates_are_tracked_and_stamped():
     """A result built on surrogates must be able to say so. PROJECT_01 rule 6."""
     k = C.load()
     assert k.stamp() == "no surrogate constants used"
-    k.value("theta_3_deg")
-    assert "theta_3_deg" in k.surrogates_read()
+    k.value("theta3_deg")
+    assert "theta3_deg" in k.surrogates_read()
     assert k.stamp().startswith("SURROGATE VALUES USED")
 
 
@@ -179,4 +179,4 @@ def test_no_derived_torque_ceiling_is_stored():
     # tau_servo*10*legs/(mass*margin) and all three inputs are live - mass is
     # unmeasured and the margin reverts to 3.0000 automatically on two D190 triggers.
     # Checked as a figure in tests/test_torque.py instead. Filed to coordination.
-    assert k.value("torque_margin") == 2.5
+    assert k.value("margin_factor") == 2.5

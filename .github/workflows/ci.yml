@@ -23,6 +23,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -r requirements.txt
+
+      # tests/test_binding.py compiles core/ and calls it through ctypes, so a
+      # missing compiler must fail HERE, as its own named step, rather than as
+      # a FileNotFoundError buried in a pytest traceback. Both runner images
+      # ship gcc; this step exists to say so out loud if that ever changes.
+      - name: C toolchain is present
+        run: gcc --version
+
       - run: python -m pytest tests/ -v
       - name: constant table is not stale
         run: |

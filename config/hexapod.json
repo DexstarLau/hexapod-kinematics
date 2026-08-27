@@ -14,9 +14,9 @@
       "unspecified": "No authoritative value exists yet. Reading this raises ConstantError by design.",
       "surrogate": "No measurement exists. This number exists ONLY so that code can run. It carries no claim about the physical machine. Any output derived from it must be stamped with the surrogates that fed it."
     },
-    "precision_convention": "D147 + D220 - double precision throughout. NO INTERMEDIATE QUANTITY IS ROUNDED BEFORE IT IS MULTIPLIED (D211: the 2x amplifier on theta_extreme has produced three errors in one quantity). Angles, lengths and rates all to 4 dp. D147 binds emitted tables and analysis, NOT the 50 Hz path.",
+    "precision_convention": "D147 + D220 - double precision throughout. NO INTERMEDIATE QUANTITY IS ROUNDED BEFORE IT IS MULTIPLIED (D211: the 2x amplifier on theta_extreme has produced three errors in one quantity). Angles, lengths and rates all to 4 dp. D147 binds emitted tables and analysis, NOT the 50 Hz path. CROSS-PRECISION COMPARISON: hex_config_t and hex_derived_t are float. Comparing a double result against a float one at a fixed number of decimal places is invalid at ANY number of places - the rate falls and never reaches zero. Agreement is judged in units in the last place against a per-field scale, K = 32 (COREDROP_04 §4.4), excluding theta3 == 180 mod 360 where psi has a 360 deg branch cut.",
     "platform": "Yeahbot hexapod (assembled kit), PROJECT_04 §1",
-    "last_updated": "2026-08-21",
+    "last_updated": "2026-08-26",
     "binding_documents": [
       "PROJECT_01",
       "PROJECT_02",
@@ -24,8 +24,12 @@
       "PROJECT_05",
       "PROJECT_06",
       "PROJECT_07",
+      "PROJECT_08",
       "COREDROP_01",
       "COREDROP_02",
+      "COREDROP_03",
+      "COREDROP_04",
+      "COREDROP_05",
       "SPIDER_PROTOCOL_01"
     ],
     "consumers": {
@@ -33,8 +37,58 @@
       "the caller -> hex_config_t": "float -> ik_core, gait_core on the 50 Hz path"
     },
     "void_documents": [
-      "PROJECT_04 §2 - all three constants dead (PROJECT_07)"
-    ]
+      "PROJECT_04 §2 constant 1 - command quantisation 0.3000 deg/command. DEAD (D219, D240). Live: command_step_deg 0.1350 grid AND joint_accuracy_deg 0.2400 accuracy, two numbers.",
+      "PROJECT_04 §2 constant 2 - torque ceiling a_eff <= 93.0 mm at 2.15 kg. DEAD (D208, D209). Live: a_eff <= 111.6279 mm. 93.0233 was margin_factor 3.0 in disguise; D261 fixes 2.5000.",
+      "PROJECT_04 §2 constant 3 - quantisation baseline 0.4392 deg per PCA9685 count. DEAD in every form (D185).",
+      "NOT VOID, despite the earlier 'all three' wording: servo_speed_no_load_deg_s = 375.0 is LIVE, re-affirmed by PROJECT_07 §1 and again by D265 as the no-load figure.",
+      "D15 leg-neutral table - superseded in whole by D259. Replaced by beta_mount_deg and beta_neutral_deg as two separate fields.",
+      "HANDOFF_39 §2 joint span +/-135 - the protocol span, not a limit (D258)."
+    ],
+    "struct_mapping": "IDENTITY. Every key below that is not listed in not_a_struct_field maps to the hex_config_t field of the SAME NAME. jq ruled on 26 August 2026 that the keys are renamed rather than a mapping table published, because nothing checks a mapping table: swap two entries and every offset assertion still passes while the invariant inverts. tests/test_config_struct_mapping.py asserts the identity in both directions.",
+    "not_a_struct_field": {
+      "leg_count": "HEX_LEGS is a compile-time macro",
+      "controlled_dof_per_leg": "implied by HEX_JOINTS / HEX_LEGS",
+      "servo_count_installed": "inventory, not kinematics",
+      "servo_count_actuated": "inventory",
+      "servo_count_bought": "inventory",
+      "servo_model": "provenance",
+      "members_per_leg": "provenance",
+      "coxa_positions_mm": "split into coxa_x_mm[6] and coxa_y_mm[6] by the filler",
+      "body_bob_budget_mm": "an acceptance budget, checked by tests, not by the core",
+      "swing_clearance_max_mm": "an upper bound on a field, not a field",
+      "swing_velocity_profile": "a name; swing_peak_factor carries the number",
+      "update_rate_hz": "frame_period_us is derived from it",
+      "servo_speed_no_load_deg_s": "provenance for dtheta_peak_deg_s",
+      "servo_speed_loaded_deg_s": "unspecified until D190",
+      "pack_voltage_v": "provenance for the speed figures",
+      "tripod_support_legs": "gait property, checked by tests",
+      "joint_envelopes_deg": "vendor servo space; joint_min/max_deg are projected from it",
+      "pwm_centre_count": "vendor encoding",
+      "pwm_count_min": "vendor encoding",
+      "pwm_count_max": "vendor encoding"
+    },
+    "derived_fields": {
+      "frame_period_us": "1e6 / update_rate_hz = 20000. Derived, never a second key (COREDROP_03 §7).",
+      "swing_peak_factor": "peak joint rate over mean, a property of swing_velocity_profile. half_sine => pi/2 (v = A*sin(pi*t/T), mean = 2A/pi). NEVER STORED - pi/2 is one of the three derived quantities already caught being written into this table.",
+      "coxa_x_mm": "coxa_positions_mm[leg][0], leg order R1 R2 R3 L1 L2 L3",
+      "coxa_y_mm": "coxa_positions_mm[leg][1]",
+      "joint_min_deg": "projected from joint_envelopes_deg through the per-joint sign map, interleaved HEX_COXA(leg)=2*leg, HEX_FEMUR(leg)=2*leg+1",
+      "joint_max_deg": "as joint_min_deg",
+      "theta3_min_deg": "max over the six legs of the per-leg tibia minimum, AFTER the sign map",
+      "theta3_max_deg": "min over the six legs of the per-leg tibia maximum, AFTER the sign map"
+    },
+    "leg_order": [
+      "R1",
+      "R2",
+      "R3",
+      "L1",
+      "L2",
+      "L3"
+    ],
+    "reshaped_fields": {
+      "beta_mount_deg": "same key name; object keyed by leg -> float[6] in leg_order",
+      "beta_neutral_deg": "same key name; object keyed by leg -> float[6] in leg_order"
+    }
   },
   "leg_count": {
     "value": 6,
@@ -83,19 +137,19 @@
     "source": "D227, PROJECT_06 §3",
     "note": "Perpendicular distance from the tibia axis to the foot-pad contact point. Hard geometry; the pad is compliant rubber and this is not a contact model. Femur and tibia axes coplanar to +/-0.0855 mm, so D207's planar two-link reduction is exact in geometry as well as algebra."
   },
-  "theta_3_deg": {
+  "theta3_deg": {
     "value": -30.0,
     "unit": "deg",
     "status": "surrogate",
     "source": "D160, PROJECT_02 §2, §3",
     "note": "Fixed tibia angle, commanded not mechanical: D221 sets the six tibia servos once at initialisation, outside gait_core. So this arrives as a DECIDED value, not a measured one (COREDROP_01_HW). What gets measured afterwards is the residual, commanded against true shaft angle by external instrument.\nTHE SURROGATE IS DELIBERATELY NON-ZERO. Exact condition for psi == 0 (COREDROP_02 §1): L3 == 0, OR theta3 = 0 (mod 360), OR theta3 = 180 (mod 360) AND L3 < L2. Note theta3 = 180 with L3 > L2 gives psi = 180, and L2 == L3 there gives R == 0. A zero surrogate pins psi to zero and collapses the leg onto a two-member case in every test using this table.\nTRAP: sin(radians(180.0)) is 1.2246e-16, not 0.0, so an equality test against zero passes at theta3 = 0 and fails at 180."
   },
-  "theta_2_neutral_deg": {
+  "theta2_nom_deg": {
     "value": 40.0,
     "unit": "deg",
     "status": "provisional",
     "source": "D70, D71",
-    "note": "Femur pitch at mid-stance. A solve variable with a floor, not a free choice. AT THE D227 MEASURED GEOMETRY THE 40.0000 SURROGATE VIOLATES D209: it puts a_eff at 167.7526 mm against a 111.6279 mm ceiling, 50.3% over. theta2_nom >= 70.0098 deg is needed at theta3 = -30, which stands at 142.1370 mm - inside PROJECT_02's 140-170 mm band. NOT CHANGED HERE: D209 rules the freed budget is not to be spent before the re-sweep. Reported as FINDING_06."
+    "note": "Femur pitch at mid-stance. A solve variable with a floor (D70), not a free choice. AT D227's MEASURED GEOMETRY THE 40.0000 SURROGATE BREAKS TWO CONSTRAINTS, NOT ONE: (a) D209 torque - a_eff 167.7526 mm against a 111.6279 mm ceiling, 50.2784 % over; (b) D11/D64 bob budget - 5.5906 mm against body_bob_budget_mm 5.0, 111.81 % spent. theta2_nom >= 70.0098 deg is needed at theta3 = -30 (derived from the torque ceiling, NOT from 40.0000, so it is outside D260's quarantine). QUARANTINED (D260): no document may quote a body height, bob figure or stance derived from theta2_nom = 40.0000 until the D197 re-sweep. NOT CHANGED HERE - theta2_nom and theta3_deg move Theta0 together and setting one before the other is guessing twice. Reported as FINDING_06, ratified by D260."
   },
   "coxa_positions_mm": {
     "value": {
@@ -129,7 +183,7 @@
     "source": "D227, PROJECT_06 §3",
     "note": "Body frame: X forward, Y left, Z up, origin at the coxa centroid. Model residual asymmetry +/-0.0300 mm, symmetrised. Corner legs sit at radius 120.0409 mm and position angle 31.6374 deg."
   },
-  "nominal_stride_mm": {
+  "stride_mm": {
     "value": 60.0,
     "unit": "mm",
     "status": "decided",
@@ -180,7 +234,7 @@
     "unit": "deg",
     "status": "provisional",
     "source": "D229, D230, D240, PROJECT_07 §2",
-    "note": "The bus command grid. angle_deg = (pwm - 1500) * 0.1350; 2000 counts over 270 deg about a centre of 1500. PAPER, not measured - D190 measures it. Supersedes 0.3000 (D186) and the PCA9685 0.4392, which is void in every form (D185)."
+    "note": "The bus command grid, 270 deg over 2000 counts (D239/D240). NOT the binding limit - joint_accuracy_deg 0.2400 is 1.7778 counts wide, so the grid never binds."
   },
   "servo_speed_no_load_deg_s": {
     "value": 375.0,
@@ -196,14 +250,14 @@
     "source": "PROJECT_04 §2 - to be measured by the hardware workstream.",
     "note": "MP2 deliverable. Any timing claim that needs a loaded speed must fail loudly until this exists."
   },
-  "stall_torque_kgcm": {
+  "tau_servo_kgcm": {
     "value": 20.0,
     "unit": "kg*cm",
     "status": "decided",
     "source": "D209, PROJECT_06 §3",
     "note": "At 7.4 V."
   },
-  "payload_mass_kg": {
+  "mass_kg": {
     "value": 2.15,
     "unit": "kg",
     "status": "provisional",
@@ -237,7 +291,7 @@
     "source": "PROJECT_02 §3",
     "note": "2 spare."
   },
-  "torque_margin": {
+  "margin_factor": {
     "value": 2.5,
     "unit": "ratio",
     "status": "decided",
@@ -252,9 +306,11 @@
       "source": "PROJECT_02 §3"
     },
     "body_bob_at_nominal_stride_mm": {
-      "low": 1.7,
-      "high": 1.9,
-      "source": "PROJECT_02 §3"
+      "low": null,
+      "high": null,
+      "status": "superseded",
+      "source": "PROJECT_02 §3, superseded by D210, superseded again by D227",
+      "note": "PROJECT_02 §3's 1.7-1.9 mm was replaced by D210's 2.5246 / 2.6743 / 2.8135 mm at h0 = 122 mm, and both are superseded by D227's measured geometry. NO BAND IS CARRIED HERE. A validation test against either stored band fails for a reason that has nothing to do with the code. The 31 August re-sweep supplies the figure. D209's freed budget is not to be spent before then."
     }
   },
   "beta_mount_deg": {
@@ -276,20 +332,7 @@
     "unit": "deg/s",
     "status": "surrogate",
     "source": "PROJECT_04 §2 no-load figure, D62",
-    "note": "Peak joint rate the swing profile is scaled to. The no-load figure standing in for a loaded one. Sweep outputs 12-14 scale linearly with this, so it is emitted alongside them (D62) and the ratios across duty are what survive, not the absolutes."
-  },
-  "joint_min_deg": {
-    "value": -135.0,
-    "unit": "deg",
-    "status": "provisional",
-    "source": "D229, PROJECT_06 §3"
-  },
-  "joint_max_deg": {
-    "value": 135.0,
-    "unit": "deg",
-    "status": "provisional",
-    "source": "D229, PROJECT_06 §3",
-    "note": "Datasheet span, 0500-2500 counts. D246: bias is set per joint over +/-200 counts and the commanded value is clamped, so a bias of b counts costs |b| counts of usable travel at one end - usable_span_deg = 270.0000 - |bias| * 0.1350, i.e. 243.0000 deg at full bias. Real limits are set after the biases are measured, never from the datasheet span.\nSCALAR FIELDS CANNOT CARRY D247's PER-JOINT ENVELOPES - see joint_envelopes_deg and FINDING_05."
+    "note": "NO-LOAD figure (D265). 375 deg/s at 7.4 V, unmeasured under load. Sweep outputs 12-14 scale linearly with this, so EVERY BODY-SPEED OUTPUT IS AN UPPER BOUND AND MUST BE LABELLED ONE (D265). Stays a surrogate until D190 measures the loaded figure. PROJECT_04 §2's three dead constants do NOT include this one - see _schema.void_documents."
   },
   "stale_ramp_ms": {
     "value": null,
@@ -403,7 +446,7 @@
     "unit": "deg",
     "status": "provisional",
     "source": "D247-D249, PROJECT_07 §7",
-    "note": "Observed across all 394 vendor action groups in Lm2六足机器人动作组V3.ini. pwm_R = 3000 - pwm_L mirrors exactly on all eighteen channels, confirming the D228 pairing and 1500 as the shared centre. THE COXA ENVELOPES ARE NOT SYMMETRIC ABOUT NEUTRAL AND DIFFER BY LEG POSITION - that is D227's 13.3626 deg beta_mount offset showing up in vendor data, not noise."
+    "note": "VENDOR SERVO-COMMAND SPACE, NOT KINEMATIC SPACE. The two sides are mirrored: pwm_R = 3000 - pwm_L (D248), so angle_R = -angle_L for the same physical pose. Converting these into hex_config_t's joint_min_deg / joint_max_deg is a PER-JOINT sign map, never a per-leg one - coxa identity on all six legs, femur and tibia identity on the left three and negated on the right three (COREDROP_05 §3). theta1 is antisymmetric across the mirror and theta2/theta3 are symmetric, so the vendor mirror cancels for the coxa and does not cancel for the other two. Applying one sign to a whole leg silently reflects its coxa window. Source is D248 (the ID map and envelope table), not D247 (which locates the file). Per-joint command OFFSET is separate, is not assumed zero, and is hardware's (D262). Reset per joint once bias is measured (D246); bias costs |b| * 0.1350 deg at ONE end only."
   },
   "pwm_centre_count": {
     "value": 1500,

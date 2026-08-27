@@ -25,10 +25,10 @@ class FakeTable(object):
 
 LEGACY = FakeTable(
     coxa_length_mm=50.0, femur_length_mm=90.0, tibia_length_mm=0.0,
-    theta_3_deg=0.0, theta_2_neutral_deg=40.0, swing_clearance_mm=15.0,
-    payload_mass_kg=2.15, dtheta_peak_deg_s=375.0,
+    theta3_deg=0.0, theta2_nom_deg=40.0, swing_clearance_mm=15.0,
+    mass_kg=2.15, dtheta_peak_deg_s=375.0,
     swing_velocity_profile="half_sine", tripod_support_legs=3,
-    stall_torque_kgcm=20.0, torque_margin=2.5, nominal_stride_mm=60.0,
+    tau_servo_kgcm=20.0, margin_factor=2.5, stride_mm=60.0,
 )
 
 
@@ -71,11 +71,11 @@ def test_psi_is_zero_only_when_the_tibia_is_zero():
     exactly when psi is zero, and psi is zero only when L3 is zero."""
     assert D.derive(LEGACY).psi_deg == 0.0
     with_tibia = FakeTable(coxa_length_mm=50.0, femur_length_mm=90.0,
-                           tibia_length_mm=45.0, theta_3_deg=-30.0,
-                           theta_2_neutral_deg=40.0)
+                           tibia_length_mm=45.0, theta3_deg=-30.0,
+                           theta2_nom_deg=40.0)
     d = D.derive(with_tibia)
     assert abs(d.psi_deg) > 1.0
-    assert d.theta_nom_deg != with_tibia.value("theta_2_neutral_deg")
+    assert d.theta_nom_deg != with_tibia.value("theta2_nom_deg")
 
 
 # --------------------------------------------------------- structural checks
@@ -104,7 +104,7 @@ def test_unreachable_stride_raises_rather_than_returning_nonsense():
 
 def test_real_table_produces_all_fourteen_outputs():
     k = C.load()
-    row, _, _ = D.sweep_point(k, k.value("nominal_stride_mm"), k.value("duty_factor"))
+    row, _, _ = D.sweep_point(k, k.value("stride_mm"), k.value("duty_factor"))
     assert list(row) == D.OUTPUT_NAMES
     assert len(row) == 14
     assert all(isinstance(v, float) for v in row.values())
