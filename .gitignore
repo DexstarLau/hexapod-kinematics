@@ -10,3 +10,8 @@ build/
 venv/
 .vscode/
 .DS_Store
+
+# Third-party vendor data -- see docs/THIRD_PARTY.md.
+# Referenced by tools/, never redistributed.
+*.ini
+vendor/
