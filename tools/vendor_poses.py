@@ -90,6 +90,18 @@ FRAME_RE = re.compile(r"\{G(\d+)((?:#\d+P\d+T\d+!)*)\}")
 ENTRY_RE = re.compile(r"#(\d+)P(\d+)T(\d+)!")
 
 
+def text_sha256(path):
+    """SHA-256 of a text file with line endings normalised to LF.
+
+    A hash of raw bytes is not a hash of a text file's CONTENT. Git for Windows
+    checks text out with CRLF, so config/hexapod.json is cae95c5c on one
+    platform and 2887e918 on the other with not one character different. The
+    stamp in the report is meant to identify a constant table, not a checkout.
+    """
+    return hashlib.sha256(
+        Path(path).read_bytes().replace(b"\r\n", b"\n")).hexdigest()
+
+
 def read_actions(path):
     """Return (frames, sha256). frames[i] = (frame_id, {channel: pwm}, {channel: ms})."""
     raw = Path(path).read_bytes()
@@ -470,8 +482,7 @@ def main(argv=None):
     ranges, breaches, tibia_moves, tibia_all = analyse(poses, c)
 
     stamp = {
-        "config_sha256": hashlib.sha256(
-            (ROOT / "config" / "hexapod.json").read_bytes()).hexdigest(),
+        "config_sha256": text_sha256(ROOT / "config" / "hexapod.json"),
         "surrogates": c.surrogates_read(),
     }
     write_report(a.report, a.actions, digest, frames, structure, spans, table,

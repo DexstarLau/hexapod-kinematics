@@ -24,7 +24,8 @@ import pytest
 from sim.constants import load
 from tools.vendor_poses import (
     CHANNEL_MAP, N_FRAMES_EXPECTED, analyse, check_envelopes, check_mirror_against_map,
-    check_structure, derive_mirror_pairs, envelope_for, raw_range, sign_for, to_angles,
+    check_structure, derive_mirror_pairs, envelope_for, raw_range, sign_for,
+    text_sha256, to_angles,
 )
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -306,7 +307,7 @@ def test_report_matches_current_config():
     text = REPORT.read_text(encoding="utf-8")
     m = re.search(r"`config/hexapod\.json`, SHA-256 `([0-9a-f]{64})`", text)
     assert m, "the report does not record which constant table produced it"
-    actual = hashlib.sha256((ROOT / "config" / "hexapod.json").read_bytes()).hexdigest()
+    actual = text_sha256(ROOT / "config" / "hexapod.json")
     assert m.group(1) == actual, (
         "config/hexapod.json has changed since the report was generated.\n"
         "  report: %s\n  actual: %s\n"
@@ -322,6 +323,23 @@ def test_report_does_not_reproduce_the_vendor_data():
     text = REPORT.read_text(encoding="utf-8")
     assert not re.search(r"#\d{3}P\d{4}T\d{4}", text), (
         "the report contains vendor frame data verbatim")
+
+
+def test_line_endings_are_pinned():
+    """The guard for CI #6. Deleting .gitattributes must fail here, not there.
+
+    Two things depend on it: the config stamp above, and the print set's
+    checksums. Neither PDF carries a NUL byte in its first 8000, so without an
+    explicit `binary` attribute Git treats them as text and rewrites them on a
+    Windows checkout.
+    """
+    attrs = ROOT / ".gitattributes"
+    assert attrs.exists(), ".gitattributes is missing; see CI #6"
+    text = attrs.read_text()
+    assert "eol=lf" in text, "text files are not pinned to LF"
+    for ext in (".pdf", ".png"):
+        assert re.search(r"\*%s\s+binary" % re.escape(ext), text), (
+            "%s is not marked binary; a Windows checkout will corrupt it" % ext)
 
 
 def test_vendor_file_is_not_committed():

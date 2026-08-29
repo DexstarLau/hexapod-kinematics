@@ -1,0 +1,23 @@
+# Line endings are normalised to LF in every working tree, on every platform.
+#
+# Without this, Git for Windows checks out text files with CRLF. Two things in
+# this repository then break, and both broke CI #6:
+#
+#   1. docs/vendor_pose_check.md records the SHA-256 of config/hexapod.json so a
+#      published result can be traced to the table that produced it. A hash of a
+#      text file's raw bytes is not stable across platforms -- the same file is
+#      cae95c5c on Linux and 2887e918 on Windows.
+#
+#   2. Git decides a file is binary by looking for a NUL byte in the first 8000.
+#      NEITHER PDF IN print/ HAS ONE. Git classified both as text and rewrote
+#      their line endings on checkout, which corrupts the file and changes its
+#      checksum. A Windows clone would have printed a broken calibration target,
+#      or none at all.
+#
+* text=auto eol=lf
+
+# Not a tidiness preference. See (2) above.
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.zip  binary
