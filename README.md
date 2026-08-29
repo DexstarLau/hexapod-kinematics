@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml/badge.svg)](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue)
-![Tests](https://img.shields.io/badge/tests-159%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-160%20passing-brightgreen)
 
 Forward kinematics, inverse kinematics and a tripod gait engine for a six-legged
 walking robot, with a Python reference bound to the same C source, a test suite,
@@ -12,9 +12,9 @@ MP1 of a twelve-project series running August 2026 to May 2028.
 
 ---
 
-## Status — 27 August 2026
+## Status — 30 August 2026
 
-This repository is eleven days old measured against its first milestone and
+This repository is fourteen days old measured against its first milestone and
 contains, so far, its foundation and its binding layer. What is here:
 
 | Component | State |
@@ -31,11 +31,11 @@ contains, so far, its foundation and its binding layer. What is here:
 | `gait_core` | due 30 Sep — algorithm workstream |
 | Python bindings to the C source | working — 26 fields, layout asserted both ways |
 | Vendor pose set, structural check | working — `tools/vendor_poses.py`, [report](docs/vendor_pose_check.md) |
-| Vendor pose set, FK residuals | **not written** — held on a `theta3` ruling |
+| Vendor pose set, FK residuals | **not written** — due 3 September |
 | MP2 print set and manifest checker | done — `print/`, `tools/check_manifest.py` |
 | Visualiser | **not written** |
 
-**159 tests passing, 0 skipped.** The binding tests compile `core/` with
+**160 tests passing, 0 skipped.** The binding tests compile `core/` with
 `-std=c99 -Wall -Wextra -pedantic` and fail rather than skip if no compiler is
 found: a skip there would be CI green over a deliverable that never ran.
 
@@ -108,7 +108,7 @@ python -m tools.vendor_poses --actions "path/to/your/copy.ini"
 Tested on Python 3.14 with pytest 9. `pyproject.toml` pins the module search
 path so behaviour does not depend on the pytest version.
 
-**159 passing, 0 skipped.**
+**160 passing, 0 skipped.**
 
 ---
 
@@ -153,6 +153,27 @@ Generation is byte-reproducible and the checksums are in
 `print/CHECKSUMS.txt`; regenerating needs `requirements-print.txt`, which is
 deliberately not part of `requirements.txt`. Protocol:
 [`docs/MP2_collection_protocol.md`](docs/MP2_collection_protocol.md).
+
+---
+
+## Line endings are pinned, and it is not a style preference
+
+`.gitattributes` normalises text to LF everywhere and marks `*.pdf` and `*.png`
+binary. Both halves are load-bearing, and CI found out the hard way:
+
+- **A text file's raw bytes are not its content.** `docs/vendor_pose_check.md`
+  records the SHA-256 of `config/hexapod.json` so a published result is traceable
+  to the table that produced it. Checked out with CRLF that file hashes
+  `2887e918`; with LF, `cae95c5c`. Not one character differs. The stamp is
+  computed over LF-normalised bytes for this reason.
+- **Git calls a file binary by looking for a NUL in its first 8000 bytes, and
+  neither PDF in `print/` has one.** Both were classified as text and rewritten
+  on a Windows checkout, which corrupts them. Anyone cloning on Windows would
+  have got a broken calibration target and no indication of it. The local
+  machine cannot see this; the Windows half of the CI matrix is what saw it.
+
+`tests/test_vendor_poses.py::test_line_endings_are_pinned` fails if
+`.gitattributes` is removed, so the next person does not rediscover this.
 
 ---
 
