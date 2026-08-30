@@ -1,8 +1,0 @@
-# Only needed to REGENERATE the print set. Not needed to run the test suite,
-# not needed to collect data, and deliberately not in requirements.txt: the
-# CI matrix must not depend on a third-party wheel existing for every Python
-# it tests, for a one-off artefact that is committed.
-#
-#   python -m tools.make_print_set --out print/
-opencv-contrib-python-headless>=4.10
-reportlab>=4.0

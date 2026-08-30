@@ -1,4 +1,0 @@
-# sha256 of the generated print set. Regeneration is byte-identical
-# (reportlab invariant=1). See tests/test_manifest.py.
-88ae874885d120a7dab2fd905589ce445dc3708a9bda12254413097fec3284c0  aruco_4x4_100mm.pdf
-0c8aeac795e1ffb1b7d0160ec974bdfc7c4b155ea2ac6f4b1320ac1a5d08d514  charuco_a4_landscape.pdf

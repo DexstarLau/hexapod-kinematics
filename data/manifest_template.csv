@@ -1,4 +1,0 @@
-session_id,frame,marker_id,marker_width_mm,distance_mm,distance_method,angle_deg,lighting,background,blur,occlusion_pct,hard,notes
-S001,S001_0001.jpg,0,99.6400,500.0,tape,0,normal,plain,none,0,0,near limit
-S001,S001_0002.jpg,0,99.6400,1000.0,tape,15,normal,plain,none,0,0,
-S001,S001_0003.jpg,0,99.6400,2000.0,tape,30,dim,cluttered,motion,10,1,deliberately hard: dim + motion
