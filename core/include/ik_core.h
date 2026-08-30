@@ -4,6 +4,9 @@
  * STATELESS. There is no ik_init and none may be created (D61). Every function
  * is pure: same inputs, same outputs, no retained state, no allocation, no I/O.
  * The caller owns the hex_derived_t and passes it in.
+ *
+ * Revision 2026-08-28: D287. IK_E_LIMIT's comment named the scalar joint limits
+ * that D258 withdrew. Comment only; no signature, enum value or type changed.
  */
 #ifndef IK_CORE_H
 #define IK_CORE_H
@@ -18,7 +21,16 @@ typedef enum {
     IK_OK = 0,
     IK_E_UNREACHABLE_FAR,   /* target beyond L1 + R */
     IK_E_UNREACHABLE_NEAR,  /* target inside the inner bound */
-    IK_E_LIMIT              /* solved, but outside [joint_min_deg, joint_max_deg] */
+    IK_E_LIMIT              /* solved, but outside the joint's envelope.
+                             * D258 replaced the scalar limits with the
+                             * joint_min_deg[HEX_JOINTS] / joint_max_deg[HEX_JOINTS]
+                             * arrays, indexed HEX_COXA(leg) and HEX_FEMUR(leg).
+                             *
+                             * ik_solve_leg NEVER RETURNS THIS. Its signature
+                             * carries no leg index, so it cannot select the
+                             * envelope row. The value exists for the caller,
+                             * which knows the leg, to return from its own check.
+                             * Stated here so nobody waits for it. */
 } ik_status_t;
 
 /* What to do when the target is unreachable. IK_PROJ_NONE returns the error
@@ -37,7 +49,11 @@ void ik_fk_leg(const hex_config_t *cfg, const hex_derived_t *d,
 
 /* Inverse: foot position, LEG frame -> joint angles.
  * On IK_OK and on a successful projection, theta1/theta2 are written.
- * On IK_E_* with IK_PROJ_NONE, neither is written. */
+ * On IK_E_* with IK_PROJ_NONE, neither is written.
+ *
+ * With theta3 fixed the reachable set is a SURFACE, not a volume: every
+ * reachable foot sits at exactly distance R from the femur axis. A target off
+ * that surface is unreachable under IK_PROJ_NONE and that is correct. */
 ik_status_t ik_solve_leg(const hex_config_t *cfg, const hex_derived_t *d,
                          float x_mm, float y_mm, float z_mm,
                          ik_proj_t mode,

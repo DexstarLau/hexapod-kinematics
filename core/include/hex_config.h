@@ -13,9 +13,14 @@
  * cores never read the file (D6.1 forbids I/O) and never contain a copy of
  * any value in it.
  *
- * Revision 2026-08-27: D240 adds joint_accuracy_deg and HEX_CFG_E_RESOLUTION.
+ * Revision 2026-08-28 (D287 reissue): D240 adds joint_accuracy_deg and
+ * HEX_CFG_E_RESOLUTION.
  * D258 replaces the scalar joint limits with per-joint arrays, adds the tibia
  * envelope pair, and appends HEX_CFG_E_THETA3. D261 fixes margin_factor.
+ * D291 puts the per-joint sign map on the envelope declarations themselves.
+ *
+ * The copy previously in project storage, sha256 147489d0d860dfae..., predates
+ * all four and is STALE. It must not be built against.
  */
 #ifndef HEX_CONFIG_H
 #define HEX_CONFIG_H
@@ -79,6 +84,11 @@ typedef struct {
     float joint_accuracy_deg;          /* datasheet accuracy. The binding limit, D240 */
 
     /* --- joint envelopes. D258. Scalars removed, not deprecated ---
+     *
+     * D291 requires this map to be stated HERE, on the declarations, and not
+     * only in a document. Seed these fields from the KINEMATIC PROJECTION of
+     * D248's envelopes under the per-joint sign map below — that is D258's
+     * wording as D291 amended it.
      *
      * KINEMATIC SPACE, like every other angle in this struct (D262). These are
      * NOT vendor servo-command angles. The vendor's two sides are mirrored —
