@@ -76,7 +76,10 @@ hex_cfg_err_t hex_config_validate(const hex_config_t *cfg)
         return HEX_CFG_E_PROFILE;
 
     /* D240. Both positive; the grid is not required to be finer than the
-     * accuracy, because it is not — 0.1350 against 0.2400. */
+     * accuracy, because it is not — 0.1350 against 1.0000 (D325, replacing
+     * the 0.2400 this line carried: 0.2400 is the disputed datasheet figure,
+     * 1.0000 is the binding limit). The conclusion is unchanged and stronger,
+     * the grid now being 7.4x finer rather than 1.8x. D345 */
     if (!(cfg->command_step_deg > 0.0f) || !(cfg->joint_accuracy_deg > 0.0f))
         return HEX_CFG_E_RESOLUTION;
 
@@ -85,6 +88,27 @@ hex_cfg_err_t hex_config_validate(const hex_config_t *cfg)
         !(cfg->theta3_deg >= cfg->theta3_min_deg) ||
         !(cfg->theta3_deg <= cfg->theta3_max_deg))
         return HEX_CFG_E_THETA3;
+
+    /* D343. The nominal stance must sit on the reachable HALF-surface.
+     *
+     * This runs BEFORE E_REACH and before the sweep, because both are unsound
+     * on a negative r_nom and both pass a folded stance silently:
+     *
+     *   E_REACH squares the sign away. r_ext = sqrtf(r_nom^2 + half^2) cannot
+     *   tell -8.6888 from +8.6888, and the check was written for the outer
+     *   bound and has no power over the inner one.
+     *
+     *   sweep_deg lands in the second quadrant. atan2f(half_stride, r_nom)
+     *   with r_nom < 0 returns 212.3049 deg of coxa sweep for a 60 mm stride,
+     *   and nothing downstream rejects it — it only has to be outlasted by
+     *   stale_ramp_ms.
+     *
+     * The bound is STRICT. At r_nom == 0 the coxa yaw is undefined and the
+     * sweep divides by the same zero. This is not a stride check and does not
+     * replace E_REACH: E_FOLD bounds the nominal stance inward, E_REACH bounds
+     * the stride extreme outward, and both stay. */
+    if (!(d.r_nom_mm > 0.0f))
+        return HEX_CFG_E_FOLD;
 
     /* The foot travels a STRAIGHT line of length stride_mm, swept by the coxa
      * alone about the coxa axis at radius r_nom. So the radial extreme is the

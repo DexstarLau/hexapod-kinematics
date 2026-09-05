@@ -106,6 +106,23 @@ not make it, because Table 1 is about geometry and not about envelopes.
 
 `reports/d275_table1_per_pose_theta3.csv`, 2,364 rows = 394 poses x 6 legs.
 
+**Distinct configurations: 71 of the 394. The largest single configuration accounts
+for 24 poses.** The table stays at 394 rows and every one of them was run; what the
+row count does not say is that **394 rows are not 394 independent checks.** The 38
+vendor sequences reuse their key frames, so a suite reporting 394 green has exercised
+71 distinct 18-channel configurations. Counted over `#000`–`#008` and `#015`–`#023`;
+`#009`–`#014` and `#024`–`#031` are excluded, and the count is taken on the raw
+integer command grid.
+
+```
+multiplicity histogram, 394 poses -> 71 configurations
+
+  1x:10   2x:14   3x:3   4x:10   5x:11   6x:2   7x:3   8x:2
+  9x:2   10x:3   11x:2  12x:3   13x:3   17x:2  24x:1
+```
+
+Reproduce with `python -m tools.distinct_configurations --actions <path>`.
+
 ```
 rows                    2364
 IK_OK                   1298
@@ -170,6 +187,25 @@ loses them.
 ## 5. Table 2 — 284 uniform-tibia poses at one fixed theta3
 
 `reports/d275_table2_fixed_theta3.csv`, 1,704 rows = 284 poses x 6 legs.
+
+**Distinct configurations: 48 of the 284. The largest accounts for 24 poses** — the
+same configuration that dominates Table 1, and it is uniform-tibia. **The shipped
+configuration passes on 48 distinct configurations, not on 284.**
+
+```
+multiplicity histogram, 284 poses -> 48 configurations
+
+  1x:4    2x:10   4x:9    5x:8    7x:3    8x:2
+  9x:2   10x:3   12x:3   13x:3   24x:1
+```
+
+**The uniform-tibia subset is selected in ANGLE space, not command space.** The two
+sides are mirrored — `sign_for` returns `+1` on the left tibia and `-1` on the right —
+so six legs at one physical angle carry commands that sum to 3000 rather than commands
+that are equal. Selecting on raw command equality returns 2 poses. This label was
+derived wrongly that way first and the 284 in the line above is what caught it.
+
+Reproduce with `python -m tools.distinct_configurations --actions <path>`.
 
 ```
 fixed theta3            -30.0000     status: surrogate

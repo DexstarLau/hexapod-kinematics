@@ -81,7 +81,11 @@ typedef struct {
 
     /* --- actuator. D186, D240 --- */
     float command_step_deg;            /* bus command grid */
-    float joint_accuracy_deg;          /* datasheet accuracy. The binding limit, D240 */
+    float joint_accuracy_deg;          /* D325 separated the two figures that D240 had
+                                        * merged. 0.2400 deg is the DATASHEET accuracy
+                                        * and is disputed; 1.0000 deg is the BINDING
+                                        * limit and is not the datasheet accuracy.
+                                        * This field carries the binding limit. D345 */
 
     /* --- joint envelopes. D258. Scalars removed, not deprecated ---
      *
@@ -156,8 +160,15 @@ typedef enum {
     HEX_CFG_E_RAMP,        /* stale_ramp_ms does not exceed one swing duration (S-c) */
     HEX_CFG_E_MARGIN,      /* margin_factor < 1 */
     HEX_CFG_E_RESOLUTION,  /* D240: command_step_deg or joint_accuracy_deg non-positive */
-    HEX_CFG_E_THETA3       /* D258: theta3_deg outside [theta3_min_deg, theta3_max_deg],
+    HEX_CFG_E_THETA3,      /* D258: theta3_deg outside [theta3_min_deg, theta3_max_deg],
                             * or the envelope pair is not ordered */
+    HEX_CFG_E_FOLD         /* D343: the NOMINAL STANCE is folded — r_nom_mm <= 0, so
+                            * the stance foot sits behind the coxa axis and the
+                            * configuration is off the reachable half-surface.
+                            * Checked before E_REACH and before the coxa sweep,
+                            * both of which are unsound on a negative r_nom.
+                            * E_FOLD bounds the stance inward; E_REACH bounds the
+                            * stride extreme outward. Both stay. */
 } hex_cfg_err_t;
 
 hex_cfg_err_t hex_config_validate(const hex_config_t *cfg);
