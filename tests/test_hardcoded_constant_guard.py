@@ -141,4 +141,4 @@ def test_quantisation_members_are_present_and_live():
     against their values until the quantisation path exists."""
     k = C.load()
     assert k.value("command_step_deg") == 0.1350
-    assert k.value("joint_accuracy_deg") == 0.2400
+    assert k.value("joint_accuracy_deg") == 1.0000

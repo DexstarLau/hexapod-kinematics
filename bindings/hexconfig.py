@@ -133,7 +133,7 @@ class HexDerived(ctypes.Structure):
 
 HEX_CFG_ERR = ("HEX_CFG_OK", "E_MEMBER", "E_DUTY", "E_STRIDE", "E_CLEARANCE",
                "E_RATE", "E_PROFILE", "E_REACH", "E_RAMP", "E_MARGIN",
-               "E_RESOLUTION", "E_THETA3")
+               "E_RESOLUTION", "E_THETA3", "E_FOLD")
 
 
 class LayoutError(Exception):
@@ -340,7 +340,20 @@ def fill(constants=None, strict=True):
         cfg.joint_max_deg[i] = maxs[i]
     cfg.theta3_min_deg, cfg.theta3_max_deg = project_theta3_envelope(env)
 
-    return cfg, c.surrogates_read(), deferred
+    # D358: a FOUR-tuple. The disputed reads travel beside the surrogate reads
+    # for the same reason -- a value that hands itself out silently defeats the
+    # label. The signature was changed while nothing depended on the new
+    # element, which is the only time it is cheap; the moment mass_kg or
+    # theta2_nom_deg becomes disputed it would have been done under pressure on
+    # a live constant. D358's override did not fire: no caller exists outside
+    # hexapod-kinematics, checked by grep before the signature moved.
+    #
+    # NOT DORMANT, contrary to what FINDING_12 section 3 asserted and D358
+    # recites. dtheta_peak_deg_s IS a hex_config_t field -- HEX_FIELD is on it
+    # in hex_config.c -- and D324 clause 2 had already made it disputed. fill()
+    # was writing a disputed constant into the struct and reporting only the
+    # surrogates. Corrected to coordination by FINDING_13 section 7.1.
+    return cfg, c.surrogates_read(), c.disputed_read(), deferred
 
 
 # ---------------------------------------------------------------------------

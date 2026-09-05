@@ -11,12 +11,13 @@
       "decided": "Fixed by a numbered decision or a vendor specification. Changes only by a new decision.",
       "measured": "Produced by a hardware-workstream measurement campaign. Carries an uncertainty.",
       "provisional": "A working number standing in for a measurement that has not happened. Will change.",
+    "disputed": "Two or more authoritative sources disagree and one was chosen deliberately. NOT void and NOT a guess - the figures that lost are kept readable, with their locations, and return if measurement supports them. Any output derived from a disputed constant must be stamped with the disputed values that fed it, exactly as a surrogate is (D324, D357).",
       "unspecified": "No authoritative value exists yet. Reading this raises ConstantError by design.",
       "surrogate": "No measurement exists. This number exists ONLY so that code can run. It carries no claim about the physical machine. Any output derived from it must be stamped with the surrogates that fed it."
     },
     "precision_convention": "D147 + D220 - double precision throughout. NO INTERMEDIATE QUANTITY IS ROUNDED BEFORE IT IS MULTIPLIED (D211: the 2x amplifier on theta_extreme has produced three errors in one quantity). Angles, lengths and rates all to 4 dp. D147 binds emitted tables and analysis, NOT the 50 Hz path. CROSS-PRECISION COMPARISON: hex_config_t and hex_derived_t are float. Comparing a double result against a float one at a fixed number of decimal places is invalid at ANY number of places - the rate falls and never reaches zero. Agreement is judged in units in the last place against a per-field scale, K = 32 (COREDROP_04 §4.4), excluding theta3 == 180 mod 360 where psi has a 360 deg branch cut.",
     "platform": "Yeahbot hexapod (assembled kit), PROJECT_04 §1",
-    "last_updated": "2026-08-26",
+    "last_updated": "2026-09-05",
     "binding_documents": [
       "PROJECT_01",
       "PROJECT_02",
@@ -37,10 +38,10 @@
       "the caller -> hex_config_t": "float -> ik_core, gait_core on the 50 Hz path"
     },
     "void_documents": [
-      "PROJECT_04 §2 constant 1 - command quantisation 0.3000 deg/command. DEAD (D219, D240). Live: command_step_deg 0.1350 grid AND joint_accuracy_deg 0.2400 accuracy, two numbers.",
+      "PROJECT_04 §2 constant 1 - command quantisation 0.3000 deg/command. DEAD (D219, D240). Live: command_step_deg 0.1350 grid AND joint_accuracy_deg 1.0000 accuracy, two numbers (D325).",
       "PROJECT_04 §2 constant 2 - torque ceiling a_eff <= 93.0 mm at 2.15 kg. DEAD (D208, D209). Live: a_eff <= 111.6279 mm. 93.0233 was margin_factor 3.0 in disguise; D261 fixes 2.5000.",
       "PROJECT_04 §2 constant 3 - quantisation baseline 0.4392 deg per PCA9685 count. DEAD in every form (D185).",
-      "NOT VOID, despite the earlier 'all three' wording: servo_speed_no_load_deg_s = 375.0 is LIVE, re-affirmed by PROJECT_07 §1 and again by D265 as the no-load figure.",
+      "NOT VOID, despite the earlier 'all three' wording: servo_speed_no_load_deg_s = 375.0 is READABLE, re-affirmed by PROJECT_07 §1 and again by D265 as the no-load figure. Its status is now DISPUTED, not decided (D324 clause 3) - disputed is not void.",
       "D15 leg-neutral table - superseded in whole by D259. Replaced by beta_mount_deg and beta_neutral_deg as two separate fields.",
       "HANDOFF_39 §2 joint span +/-135 - the protocol span, not a limit (D258)."
     ],
@@ -234,14 +235,14 @@
     "unit": "deg",
     "status": "provisional",
     "source": "D229, D230, D240, PROJECT_07 §2",
-    "note": "The bus command grid, 270 deg over 2000 counts (D239/D240). NOT the binding limit - joint_accuracy_deg 0.2400 is 1.7778 counts wide, so the grid never binds."
+    "note": "The bus command grid, 270 deg over 2000 counts (D239/D240). NOT the binding limit - joint_accuracy_deg 1.0000 is 7.4074 counts wide, so the grid never binds (D325)."
   },
   "servo_speed_no_load_deg_s": {
     "value": 375.0,
     "unit": "deg/s",
-    "status": "decided",
-    "source": "PROJECT_04 §2",
-    "note": "Vendor no-load figure. Supersedes the provisional 200 deg/s."
+    "status": "disputed",
+    "source": "PROJECT_04 §2, status amended by D324 clause 3",
+    "note": "Vendor no-load figure, kept readable rather than voided (D324 clause 3). It is one of two vendor readings that disagree: 使用手册 §2.1.1 p8, 转速 0.16 s/60 deg AT 7.4 V, giving this 375.0; and 使用说明 slide 8, 响应速度 0.24 s/60 deg with NO voltage qualifier, giving 250.0. D324 planned on the slower. This entry is provenance for dtheta_peak_deg_s and is not a hex_config_t field. Supersedes the provisional 200 deg/s."
   },
   "servo_speed_loaded_deg_s": {
     "value": null,
@@ -328,11 +329,11 @@
     "note": "Frame yaw of each coxa axis. All six axes parallel to 1.0000 deg.\nTHE CORNER-LEG TRAP: corner legs have position angle 31.6374 deg but beta_mount 45.0000 - a 13.3626 deg difference. A model assuming legs point radially outward from the body centre is wrong on four legs of six. The middle legs ARE radial (90.0000 vs 90.0000), so a single-leg validation on a middle leg passes and hides it. See the fifth guard."
   },
   "dtheta_peak_deg_s": {
-    "value": 375.0,
+    "value": 250.0,
     "unit": "deg/s",
-    "status": "surrogate",
-    "source": "PROJECT_04 §2 no-load figure, D62",
-    "note": "NO-LOAD figure (D265). 375 deg/s at 7.4 V, unmeasured under load. Sweep outputs 12-14 scale linearly with this, so EVERY BODY-SPEED OUTPUT IS AN UPPER BOUND AND MUST BE LABELLED ONE (D265). Stays a surrogate until D190 measures the loaded figure. PROJECT_04 §2's three dead constants do NOT include this one - see _schema.void_documents."
+    "status": "disputed",
+    "source": "D324, amending D186 and D265 in status",
+    "note": "A DISPUTED NOMINAL CEILING, not the ZX20D's measured speed (D324 clause 2). Two vendor sources disagree and only the faster carries a voltage qualifier: 使用手册 §2.1.1 p8 gives 转速 0.16 s/60 deg at 7.4 V = 375 deg/s, and 使用说明 slide 8 gives 响应速度 0.24 s/60 deg unqualified = 250 deg/s. D324 takes the slower, because over-planning fails SILENTLY as gait phase slip while under-planning only walks slower - the asymmetry is one-directional. 375.0 IS NOT VOID (D324 clause 3) and returns if measurement supports it; D186 and D265 move from INFERRED to DISPUTED. Sweep outputs 12-14 scale linearly with this, so EVERY BODY-SPEED OUTPUT IS AN UPPER BOUND AND MUST BE LABELLED ONE (D265). D190 measures the loaded figure; D324 clause 4 puts the no-load 60 deg step on the A-day work order. PROJECT_04 §2's three dead constants do NOT include this one - see _schema.void_documents."
   },
   "stale_ramp_ms": {
     "value": null,
@@ -368,11 +369,11 @@
     "note": "INFERRED under D159. Commanded coxa yaw at which the leg lies along beta_mount_deg. The assembly datum is the servo centre and all six coxae read PWM 1500 = 0.0000 deg. beta_mount_deg and beta_neutral_deg stay separate fields and separate concepts (D23); D238 rules the value, not the distinction."
   },
   "joint_accuracy_deg": {
-    "value": 0.24,
+    "value": 1.0,
     "unit": "deg",
     "status": "provisional",
-    "source": "D230, D240, PROJECT_07 §2",
-    "note": "Datasheet accuracy - where the servo actually LANDS. THIS IS THE BINDING LIMIT, not the command grid: 0.2400 / 0.1350 = 1.7778 counts, so the grid never binds and a sweep modelling only the grid understates foot-position error by that factor. New field of hex_config_t, issued to the algorithm workstream in HANDOFF_40. PAPER - D190 measures it."
+    "source": "D325, amending the value D240 makes binding",
+    "note": "Where the servo actually LANDS, and THIS IS THE BINDING LIMIT, not the command grid. BOTH figures are on the datasheet and D325 separates what D240 had merged: 理论精度 0.24 deg is the theoretical accuracy and is disputed; 综合实际使用精度 1 deg is the practical one and is what binds. 1.0000 / 0.1350 = 7.4074 counts, so the grid never binds and a sweep modelling only the grid understates foot-position error by that factor. The conclusion D240 drew is unchanged and stronger - the grid is 7.4074x finer, not 1.7778x. Stays provisional under D240 because D190 is already scheduled to replace it; a paper figure with a replacement scheduled is provisional by the schema's own definition. New field of hex_config_t, issued to the algorithm workstream in HANDOFF_40."
   },
   "joint_envelopes_deg": {
     "value": {

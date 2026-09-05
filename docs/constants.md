@@ -4,7 +4,7 @@
 
 Platform: Yeahbot hexapod (assembled kit), PROJECT_04 §1  
 Precision: D147 + D220 - double precision throughout. NO INTERMEDIATE QUANTITY IS ROUNDED BEFORE IT IS MULTIPLIED (D211: the 2x amplifier on theta_extreme has produced three errors in one quantity). Angles, lengths and rates all to 4 dp. D147 binds emitted tables and analysis, NOT the 50 Hz path. CROSS-PRECISION COMPARISON: hex_config_t and hex_derived_t are float. Comparing a double result against a float one at a fixed number of decimal places is invalid at ANY number of places - the rate falls and never reaches zero. Agreement is judged in units in the last place against a per-field scale, K = 32 (COREDROP_04 §4.4), excluding theta3 == 180 mod 360 where psi has a 360 deg branch cut.  
-Last updated: 2026-08-26
+Last updated: 2026-09-05
 
 ## Surrogate constants
 
@@ -12,7 +12,6 @@ Last updated: 2026-08-26
 run. They carry no claim about the physical machine, and any result derived
 from one is stamped by `Constants.stamp()`.
 
-- **`dtheta_peak_deg_s`** = 375.0000 deg/s - PROJECT_04 §2 no-load figure, D62
 - **`theta3_deg`** = -30.0000 deg - D160, PROJECT_02 §2, §3
 
 ## Blocked constants
@@ -35,10 +34,10 @@ No code may proceed past them with a guessed number.
 | `controlled_dof_per_leg` | 2 | count | decided | D3 |
 | `coxa_length_mm` | 42.0000 | mm | measured | D227, PROJECT_06 §3 |
 | `coxa_positions_mm` | R1: [102.201, -62.9665]; R2: [0.0, -79.0]; R3: [-102.201, -62.9665]; L1: [102.201, 62.9665]; L2: [0.0, 79.0]; L3: [-102.201, 62.9665] | mm | measured | D227, PROJECT_06 §3 |
-| `dtheta_peak_deg_s` | 375.0000 | deg/s | **SURROGATE** | PROJECT_04 §2 no-load figure, D62 |
+| `dtheta_peak_deg_s` | 250.0000 | deg/s | **DISPUTED** | D324, amending D186 and D265 in status |
 | `duty_factor` | 0.5000 | ratio | decided | D146 |
 | `femur_length_mm` | 74.2000 | mm | measured | D227, PROJECT_06 §3 |
-| `joint_accuracy_deg` | 0.2400 | deg | **PROVISIONAL** | D230, D240, PROJECT_07 §2 |
+| `joint_accuracy_deg` | 1.0000 | deg | **PROVISIONAL** | D325, amending the value D240 makes binding |
 | `joint_envelopes_deg` | coxa_front: {'left': [-47.25, 47.25], 'right': [-47.25, 47.25], 'span': 94.5}; coxa_middle: {'left': [-54.0, 13.5], 'right': [-13.5, 54.0], 'span': 67.5}; coxa_rear: {'left': [-47.25, 13.5], 'right': [-13.5, 47.25], 'span': 60.75}; femur_all: {'left': [-47.25, 94.5], 'right': [-94.5, 47.25], 'span': 141.75}; tibia_front_middle: {'left': [-67.5, 121.5], 'right': [-121.5, 67.5], 'span': 189.0}; tibia_rear: {'left': [-67.5, 135.0], 'right': [-135.0, 67.5], 'span': 202.5} | deg | **PROVISIONAL** | D247-D249, PROJECT_07 §7 |
 | `leg_count` | 6 | count | decided | PROJECT_01 §5.1 |
 | `margin_factor` | 2.5000 | ratio | decided | D209, PROJECT_05 |
@@ -53,7 +52,7 @@ No code may proceed past them with a guessed number.
 | `servo_count_installed` | 18 | count | decided | PROJECT_02 §3, PROJECT_04 §1 |
 | `servo_model` | ZX20D | text | decided | PROJECT_04 §1 |
 | `servo_speed_loaded_deg_s` | - | deg/s | **BLOCKED** | PROJECT_04 §2 - to be measured by the hardware workstream. |
-| `servo_speed_no_load_deg_s` | 375.0000 | deg/s | decided | PROJECT_04 §2 |
+| `servo_speed_no_load_deg_s` | 375.0000 | deg/s | **DISPUTED** | PROJECT_04 §2, status amended by D324 clause 3 |
 | `stale_ramp_ms` | - | ms | **BLOCKED** | hex_config.h, D144 - needed by gait_core, due 30 Sep |
 | `stride_mm` | 60.0000 | mm | decided | D27 |
 | `swing_clearance_max_mm` | 20.0000 | mm | decided | D69 |
@@ -76,7 +75,7 @@ THE CORNER-LEG TRAP: corner legs have position angle 31.6374 deg but beta_mount 
 
 **`body_bob_budget_mm`** - Peak-to-peak. This, not servo torque, is what limits stride.
 
-**`command_step_deg`** - The bus command grid, 270 deg over 2000 counts (D239/D240). NOT the binding limit - joint_accuracy_deg 0.2400 is 1.7778 counts wide, so the grid never binds.
+**`command_step_deg`** - The bus command grid, 270 deg over 2000 counts (D239/D240). NOT the binding limit - joint_accuracy_deg 1.0000 is 7.4074 counts wide, so the grid never binds (D325).
 
 **`controlled_dof_per_leg`** - Coxa yaw + femur pitch actuated. The tibia member is installed and held at fixed theta_3_deg. v2 makes theta_3 a solve variable with no interface change (PROJECT_02 §2).
 
@@ -84,11 +83,11 @@ THE CORNER-LEG TRAP: corner legs have position angle 31.6374 deg but beta_mount 
 
 **`coxa_positions_mm`** - Body frame: X forward, Y left, Z up, origin at the coxa centroid. Model residual asymmetry +/-0.0300 mm, symmetrised. Corner legs sit at radius 120.0409 mm and position angle 31.6374 deg.
 
-**`dtheta_peak_deg_s`** - NO-LOAD figure (D265). 375 deg/s at 7.4 V, unmeasured under load. Sweep outputs 12-14 scale linearly with this, so EVERY BODY-SPEED OUTPUT IS AN UPPER BOUND AND MUST BE LABELLED ONE (D265). Stays a surrogate until D190 measures the loaded figure. PROJECT_04 §2's three dead constants do NOT include this one - see _schema.void_documents.
+**`dtheta_peak_deg_s`** - A DISPUTED NOMINAL CEILING, not the ZX20D's measured speed (D324 clause 2). Two vendor sources disagree and only the faster carries a voltage qualifier: 使用手册 §2.1.1 p8 gives 转速 0.16 s/60 deg at 7.4 V = 375 deg/s, and 使用说明 slide 8 gives 响应速度 0.24 s/60 deg unqualified = 250 deg/s. D324 takes the slower, because over-planning fails SILENTLY as gait phase slip while under-planning only walks slower - the asymmetry is one-directional. 375.0 IS NOT VOID (D324 clause 3) and returns if measurement supports it; D186 and D265 move from INFERRED to DISPUTED. Sweep outputs 12-14 scale linearly with this, so EVERY BODY-SPEED OUTPUT IS AN UPPER BOUND AND MUST BE LABELLED ONE (D265). D190 measures the loaded figure; D324 clause 4 puts the no-load 60 deg step on the A-day work order. PROJECT_04 §2's three dead constants do NOT include this one - see _schema.void_documents.
 
 **`duty_factor`** - By decision, exposed as config.
 
-**`joint_accuracy_deg`** - Datasheet accuracy - where the servo actually LANDS. THIS IS THE BINDING LIMIT, not the command grid: 0.2400 / 0.1350 = 1.7778 counts, so the grid never binds and a sweep modelling only the grid understates foot-position error by that factor. New field of hex_config_t, issued to the algorithm workstream in HANDOFF_40. PAPER - D190 measures it.
+**`joint_accuracy_deg`** - Where the servo actually LANDS, and THIS IS THE BINDING LIMIT, not the command grid. BOTH figures are on the datasheet and D325 separates what D240 had merged: 理论精度 0.24 deg is the theoretical accuracy and is disputed; 综合实际使用精度 1 deg is the practical one and is what binds. 1.0000 / 0.1350 = 7.4074 counts, so the grid never binds and a sweep modelling only the grid understates foot-position error by that factor. The conclusion D240 drew is unchanged and stronger - the grid is 7.4074x finer, not 1.7778x. Stays provisional under D240 because D190 is already scheduled to replace it; a paper figure with a replacement scheduled is provisional by the schema's own definition. New field of hex_config_t, issued to the algorithm workstream in HANDOFF_40.
 
 **`joint_envelopes_deg`** - VENDOR SERVO-COMMAND SPACE, NOT KINEMATIC SPACE. The two sides are mirrored: pwm_R = 3000 - pwm_L (D248), so angle_R = -angle_L for the same physical pose. Converting these into hex_config_t's joint_min_deg / joint_max_deg is a PER-JOINT sign map, never a per-leg one - coxa identity on all six legs, femur and tibia identity on the left three and negated on the right three (COREDROP_05 §3). theta1 is antisymmetric across the mirror and theta2/theta3 are symmetric, so the vendor mirror cancels for the coxa and does not cancel for the other two. Applying one sign to a whole leg silently reflects its coxa window. Source is D248 (the ID map and envelope table), not D247 (which locates the file). Per-joint command OFFSET is separate, is not assumed zero, and is hardware's (D262). Reset per joint once bias is measured (D246); bias costs |b| * 0.1350 deg at ONE end only.
 
@@ -110,7 +109,7 @@ THE CORNER-LEG TRAP: corner legs have position angle 31.6374 deg but beta_mount 
 
 **`servo_speed_loaded_deg_s`** - MP2 deliverable. Any timing claim that needs a loaded speed must fail loudly until this exists.
 
-**`servo_speed_no_load_deg_s`** - Vendor no-load figure. Supersedes the provisional 200 deg/s.
+**`servo_speed_no_load_deg_s`** - Vendor no-load figure, kept readable rather than voided (D324 clause 3). It is one of two vendor readings that disagree: 使用手册 §2.1.1 p8, 转速 0.16 s/60 deg AT 7.4 V, giving this 375.0; and 使用说明 slide 8, 响应速度 0.24 s/60 deg with NO voltage qualifier, giving 250.0. D324 planned on the slower. This entry is provenance for dtheta_peak_deg_s and is not a hex_config_t field. Supersedes the provisional 200 deg/s.
 
 **`swing_clearance_max_mm`** - Exceeding this requires a re-sweep.
 

@@ -126,15 +126,28 @@ Reproduce with `python -m tools.distinct_configurations --actions <path>`.
 ```
 rows                    2364
 IK_OK                   1298
-not IK_OK               1066      all E_UNREACHABLE_NEAR
+IK_W_REFLECTED          1066      exact, pose written (D342)
+errors                     0
 
 max  |d theta|          7.629395e-06 deg   =  5.651403e-05 command steps
 mean |d theta|          2.433412e-06 deg
 worst row               G0100 L2, theta3 = 114.7500, d_theta2 = -7.629e-06
 
-poses with all six legs OK      202
-poses with at least one not OK  192
+max |d theta| on the reflected rows   1.525879e-05 deg
+
+poses with all six plain OK         202
+poses with at least one reflected   192
 ```
+
+**This block changed meaning on 5 September and not one of its numbers moved.** Before
+D342 the 1,066 rows were `E_UNREACHABLE_NEAR` — refused, with no pose written. **D342
+clause 3 makes them `IK_W_REFLECTED`: solved exactly, with the pose written**, and D344
+corrects the reachable set to the half-surface to match. **The partition is the same
+partition; what was a refusal is now a warning carrying an answer.**
+
+**The word *refusal* below is kept where it describes the pre-D342 behaviour**, and is
+not a claim about the current core. §4.1's finding is untouched by the change: it was
+always about the sign of `r`, never about which status the sign produced.
 
 **On every row it solves, the geometry closes at the float32 floor** — four orders of
 magnitude below the `0.1350` command grid, so no residual here could mask a real
@@ -213,7 +226,8 @@ derived                 R = 180.7311     psi = -18.1543
 
 rows                    1704
 IK_OK                   1704
-not IK_OK                  0
+IK_W_REFLECTED             0
+errors                     0
 
 max  |d theta|          1.907349e-06 deg  =  1.412851e-05 command steps
 mean |d theta|          6.189928e-07 deg

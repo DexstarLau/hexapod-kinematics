@@ -248,14 +248,14 @@ def test_strict_fill_refuses_on_unspecified():
 
 def test_deferred_fields_are_nan_not_zero():
     """A zero would pass hex_config_validate's guards silently. NaN does not."""
-    cfg, _surrogates, deferred = fill(strict=False)
+    cfg, _surrogates, _disputed, deferred = fill(strict=False)
     assert deferred, "nothing was deferred; this test no longer tests anything"
     for name in deferred:
         assert math.isnan(getattr(cfg, name)), name
 
 
 def test_core_rejects_a_deferred_config(lib):
-    cfg, _s, deferred = fill(strict=False)
+    cfg, _s, _d2, deferred = fill(strict=False)
     err = lib.hex_config_validate(ctypes.byref(cfg))
     assert err != 0, "a config with %s missing must not validate" % ", ".join(deferred)
     assert describe(err) == "E_RAMP"
@@ -263,7 +263,7 @@ def test_core_rejects_a_deferred_config(lib):
 
 def test_derived_config_is_usable_despite_the_deferral(lib):
     """hex_derive and FK never read the gait fields, so they still work."""
-    cfg, _s, _d = fill(strict=False)
+    cfg, _s, _disp, _d = fill(strict=False)
     d = HexDerived()
     assert lib.hex_derive(ctypes.byref(cfg), ctypes.byref(d)) == 0
     assert d.rigid_len_mm > 0.0
@@ -271,7 +271,7 @@ def test_derived_config_is_usable_despite_the_deferral(lib):
 
 
 def test_fill_reports_the_surrogates_it_used():
-    _cfg, surrogates, _d = fill(strict=False)
+    _cfg, surrogates, _disp, _d = fill(strict=False)
     assert "theta3_deg" in surrogates, (
         "theta3_deg is a surrogate and every output fed by it must be stamped")
 
@@ -292,7 +292,7 @@ def test_derive_agrees_with_the_double_path(lib, constants):
     precisions to a shared decimal grid disagrees 5.58 % of the time at 4 dp
     and 0.06 % at 2 dp — the rate falls with the places and never reaches zero.
     """
-    cfg, _s, _d = fill(strict=False)
+    cfg, _s, _disp, _d = fill(strict=False)
     out = HexDerived()
     assert lib.hex_derive(ctypes.byref(cfg), ctypes.byref(out)) == 0
 
@@ -353,9 +353,16 @@ def test_decimal_place_comparison_is_unsound():
     ("command_step_deg", 0.0, "E_RESOLUTION"),
     ("joint_accuracy_deg", -0.1, "E_RESOLUTION"),
     ("theta3_deg", 130.0, "E_THETA3"),
+    # D359 clause 2. D343 appended HEX_CFG_E_FOLD and no row reached it, so
+    # test_no_error_code_is_dead below went red the moment the enum grew.
+    # theta2_nom_deg = 130.0 crosses the fold boundary at the SHIPPED
+    # theta3_deg = -30.0000, where it sits at theta2 = 121.5921: r_nom goes to
+    # -25.2516 while body_height stays at +167.7526, so E_CLEARANCE cannot
+    # fire and the folded stance reaches the check D343 added for it.
+    ("theta2_nom_deg", 130.0, "E_FOLD"),
 ])
 def test_each_error_code_fires_for_its_own_cause(lib, field, value, expected):
-    cfg, _s, _d = fill(strict=False)
+    cfg, _s, _disp, _d = fill(strict=False)
     cfg.stale_ramp_ms = 200.0          # lift the deferral so the later guards are reachable
     cfg.swing_eps_mm_s = 1.0
     assert describe(lib.hex_config_validate(ctypes.byref(cfg))) == "HEX_CFG_OK", \
@@ -371,10 +378,43 @@ def test_no_error_code_is_dead(lib):
                          ("swing_clearance_mm", 500.0), ("dtheta_peak_deg_s", 0.0),
                          ("swing_peak_factor", 0.5), ("stride_mm", 900.0),
                          ("stale_ramp_ms", 1.0), ("margin_factor", 0.5),
-                         ("command_step_deg", 0.0), ("theta3_deg", 130.0)]:
-        cfg, _s, _d = fill(strict=False)
+                         ("command_step_deg", 0.0), ("theta3_deg", 130.0),
+                         ("theta2_nom_deg", 130.0)]:
+        cfg, _s, _disp, _d = fill(strict=False)
         cfg.stale_ramp_ms = 200.0
         cfg.swing_eps_mm_s = 1.0
         setattr(cfg, field, value)
         reached.add(describe(lib.hex_config_validate(ctypes.byref(cfg))))
     assert reached == set(HEX_CFG_ERR), "unreached: %s" % (set(HEX_CFG_ERR) - reached)
+
+
+def test_d358_fill_reports_disputed_reads_too():
+    """D358. The fourth element of fill()'s return, asserted on a LIVE disputed
+    field rather than on an empty list.
+
+    This test was written to cover what D358 and FINDING_12 section 3 both called
+    a dormant case -- no hex_config_t field disputed, so the new channel would
+    sit unused until A-day. It asserted `== []` and FAILED ON FIRST RUN.
+
+    dtheta_peak_deg_s IS a struct field. HEX_FIELD(dtheta_peak_deg_s) is in
+    hex_config.c, and D324 clause 2 had made it disputed before D358 was written.
+    fill() had been writing a disputed constant into hex_config_t and reporting
+    only the surrogates -- the exact failure the fourth element exists to stop,
+    already happening, described in the decision as hypothetical.
+
+    So the assertion is the live list. A test that asserts a placeholder has no
+    power over the thing it names, and this one had to be wrong once to say
+    anything at all. Corrected to coordination in FINDING_13 section 7.1.
+    """
+    cfg, surrogates, disputed, deferred = fill(strict=False)
+    assert disputed == ["dtheta_peak_deg_s"]
+
+    # It is genuinely in the struct, not merely in the table. Read the field
+    # back rather than trusting the name.
+    assert cfg.dtheta_peak_deg_s == 250.0
+
+    # The three channels are separate. A disputed constant is not a surrogate
+    # and not a deferral, and collapsing any pair would lose the distinction
+    # the stamp exists to carry.
+    assert "dtheta_peak_deg_s" not in surrogates
+    assert "dtheta_peak_deg_s" not in deferred

@@ -22,7 +22,8 @@ from pathlib import Path
 CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "hexapod.json"
 
 REQUIRED_FIELDS = ("value", "unit", "status", "source")
-VALID_STATUS = ("decided", "measured", "provisional", "surrogate", "unspecified")
+VALID_STATUS = ("decided", "measured", "disputed", "provisional", "surrogate",
+                "unspecified")
 
 
 class ConstantError(Exception):
@@ -39,6 +40,7 @@ class Constants:
     def __init__(self, table):
         self._table = table
         self._surrogates_read = set()
+        self._disputed_read = set()
 
     def names(self):
         """Every constant name, sorted. Metadata keys starting with '_' are excluded."""
@@ -66,6 +68,8 @@ class Constants:
             )
         if entry["status"] == "surrogate":
             self._surrogates_read.add(name)
+        if entry["status"] == "disputed":
+            self._disputed_read.add(name)
         return entry["value"]
 
     def surrogates_read(self):
@@ -77,12 +81,35 @@ class Constants:
         """
         return sorted(self._surrogates_read)
 
+    def disputed_read(self):
+        """Every DISPUTED constant this object has actually handed out.
+
+        The same shape as surrogates_read() and for the same reason. D324
+        clause 2 labels dtheta_peak_deg_s a disputed nominal ceiling; a label
+        that lives only in a note is one a reader has to go and find. This
+        makes it executable. D357.
+
+        A disputed constant is NOT void and NOT a guess -- two sources
+        disagree and one was chosen. What must not happen is it being handed
+        out silently, which is exactly what the surrogate stamp already exists
+        to prevent.
+        """
+        return sorted(self._disputed_read)
+
     def stamp(self):
         """One-line provenance stamp for any emitted result."""
         used = self.surrogates_read()
+        disputed = self.disputed_read()
+        # The surrogate clause is UNCHANGED CHARACTER FOR CHARACTER. Two tests
+        # assert its exact string, and D357 accepted that shape: the disputed
+        # clause is APPENDED, never woven into the sentence that already exists.
         if not used:
-            return "no surrogate constants used"
-        return "SURROGATE VALUES USED - NOT A MEASUREMENT: " + ", ".join(used)
+            head = "no surrogate constants used"
+        else:
+            head = "SURROGATE VALUES USED - NOT A MEASUREMENT: " + ", ".join(used)
+        if not disputed:
+            return head
+        return head + " | DISPUTED VALUES USED: " + ", ".join(disputed)
 
     def __getitem__(self, name):
         return self.value(name)

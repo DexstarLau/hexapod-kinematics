@@ -19,6 +19,7 @@ BADGE = {
     "decided": "decided",
     "measured": "measured",
     "provisional": "**PROVISIONAL**",
+    "disputed": "**DISPUTED**",
     "surrogate": "**SURROGATE**",
     "unspecified": "**BLOCKED**",
 }

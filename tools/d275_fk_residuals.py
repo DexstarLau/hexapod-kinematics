@@ -89,13 +89,45 @@ def angle_deg(pwm: int, leg: str, joint: str) -> float:
 # ------------------------------------------------------------------ the library
 
 IK_OK = 0
+IK_W_REFLECTED = 4
 IK_PROJ_NONE = 0
-IK_STATUS = {0: "IK_OK", 1: "E_UNREACHABLE_FAR", 2: "E_UNREACHABLE_NEAR", 3: "E_LIMIT"}
+
+# D342 appended IK_W_REFLECTED; D343 appended HEX_CFG_E_FOLD. Both enums are
+# APPEND ONLY, so these tables must be appended to in step or they silently
+# stop naming the thing the core returns.
+IK_STATUS = {0: "IK_OK", 1: "E_UNREACHABLE_FAR", 2: "E_UNREACHABLE_NEAR",
+             3: "E_LIMIT", 4: "IK_W_REFLECTED"}
 CFG_ERR = {
     0: "HEX_CFG_OK", 1: "E_MEMBER", 2: "E_DUTY", 3: "E_STRIDE", 4: "E_CLEARANCE",
     5: "E_RATE", 6: "E_PROFILE", 7: "E_REACH", 8: "E_RAMP", 9: "E_MARGIN",
-    10: "E_RESOLUTION", 11: "E_THETA3",
+    10: "E_RESOLUTION", 11: "E_THETA3", 12: "E_FOLD",
 }
+
+# Statuses on which ik_solve_leg WRITES theta1/theta2. This is the predicate the
+# tool needs, and `st == IK_OK` is not it: D342 made IK_W_REFLECTED an EXACT
+# solution with the pose written. ik_core.h states the contract.
+WRITES_ANGLES = frozenset({IK_OK, IK_W_REFLECTED})
+
+
+def status_name(code, table=None):
+    """Name a status, and RAISE on one that is not named.
+
+    The previous form was a dict `.get` with the code itself as the default,
+    which returned the bare
+    integer for an unknown code. That is how D342's change of meaning passed
+    through this tool without anything going red: status 4 fell through as the
+    integer 4, missed `== "IK_OK"`, landed in `bad`, and the counts stayed at
+    1298/1066 while meaning something entirely different. The 1,066 exact poses
+    were written to the CSV with a bare `4` and four empty residual columns.
+
+    Adding the key fixes this enumerator. Raising is what fixes the next one.
+    """
+    table = IK_STATUS if table is None else table
+    if code not in table:
+        raise ValueError(
+            "unnamed status %r. The C enum has gained a member and this table "
+            "has not. Do not add a fallback here -- add the name." % (code,))
+    return table[code]
 
 CFLAGS = ["-std=c99", "-Wall", "-Wextra", "-pedantic", "-O2", "-fPIC", "-shared",
           "-ffp-contract=off"]
@@ -146,6 +178,22 @@ def signed_reach_mm(cfg, der, t2: float) -> float:
     return cfg.coxa_length_mm + der.rigid_len_mm * math.cos(th)
 
 
+def wrap180(deg):
+    """Fold a difference into (-180, +180]. D360.
+
+    Both recovered angles are determined only up to a multiple of 360 and
+    ik_solve_leg returns them normalised. A residual taken as a raw subtraction
+    reports a full turn as an error of 360 degrees. The vendor corpus does not
+    reach the wrap, so this changes no figure D275 publishes -- it is here so
+    that the tool cannot report one if a future corpus does.
+    """
+    while deg > 180.0:
+        deg -= 360.0
+    while deg <= -180.0:
+        deg += 360.0
+    return deg
+
+
 def round_trip(lib, cfg, der, t1: float, t2: float):
     """FK then IK. Returns (status, d_theta1, d_theta2, foot xyz)."""
     x, y, z = (ctypes.c_float() for _ in range(3))
@@ -155,9 +203,14 @@ def round_trip(lib, cfg, der, t1: float, t2: float):
     st = lib.ik_solve_leg(ctypes.byref(cfg), ctypes.byref(der),
                           x.value, y.value, z.value, IK_PROJ_NONE,
                           ctypes.byref(o1), ctypes.byref(o2))
-    if st != IK_OK:
+    # NOT `st != IK_OK`. The question is whether the core wrote the angles,
+    # and since D342 it writes them on IK_W_REFLECTED as well -- exactly, with
+    # the pose the caller asked for. Discarding them here is what left 1,066
+    # rows of the CSV blank in the columns they exist to carry.
+    if st not in WRITES_ANGLES:
         return st, None, None, (x.value, y.value, z.value)
-    return st, o1.value - t1, o2.value - t2, (x.value, y.value, z.value)
+    return (st, wrap180(o1.value - t1), wrap180(o2.value - t2),
+            (x.value, y.value, z.value))
 
 
 # ----------------------------------------------------------------------- tables
@@ -185,7 +238,7 @@ def table1(lib, k, frames):
                 rows.append((gid, leg, t1, t2, t3, None, None, None, CFG_ERR[e]))
                 continue
             st, d1, d2, xyz = round_trip(lib, cfg, der, t1, t2)
-            rows.append((gid, leg, t1, t2, t3, d1, d2, xyz, IK_STATUS.get(st, st),
+            rows.append((gid, leg, t1, t2, t3, d1, d2, xyz, status_name(st),
                          signed_reach_mm(cfg, der, t2)))
     return rows
 
@@ -204,34 +257,49 @@ def table2(lib, k, frames, theta3_fixed: float):
             t1, t2, _t3 = ang[leg]
             st, d1, d2, xyz = round_trip(lib, cfg, der, t1, t2)
             rows.append((gid, leg, t1, t2, theta3_fixed, d1, d2, xyz,
-                         IK_STATUS.get(st, st), signed_reach_mm(cfg, der, t2)))
+                         status_name(st), signed_reach_mm(cfg, der, t2)))
     return rows, der
 
 
 def summarise(rows, label):
+    # THREE-way, not two. Folding the reflected rows into `ok` would give
+    # 2364/0 and erase the only committed evidence that the fold is an exact
+    # property in both directions; leaving them in `bad` says they failed,
+    # which since D342 they did not. 1298 / 1066 / 0 keeps the finding and
+    # attaches each number to the status it now means.
     ok = [r for r in rows if r[8] == "IK_OK"]
-    bad = [r for r in rows if r[8] != "IK_OK"]
+    reflected = [r for r in rows if r[8] == "IK_W_REFLECTED"]
+    bad = [r for r in rows if r[8] not in ("IK_OK", "IK_W_REFLECTED")]
+    not_plain = reflected + bad          # what "not IK_OK" used to mean
     res = [max(abs(r[5]), abs(r[6])) for r in ok]
+    res_ref = [max(abs(r[5]), abs(r[6])) for r in reflected]
     worst = max(ok, key=lambda r: max(abs(r[5]), abs(r[6]))) if ok else None
     print(f"\n--- {label} ---")
     print(f"  rows                  {len(rows)}   ({len(rows)//6} poses x 6 legs)")
     print(f"  IK_OK                 {len(ok)}")
-    print(f"  not IK_OK             {len(bad)}")
+    print(f"  IK_W_REFLECTED        {len(reflected)}   exact, pose written (D342)")
+    print(f"  errors                {len(bad)}")
     if res:
         print(f"  max |d theta|         {max(res):.6e} deg")
         print(f"  mean |d theta|        {sum(res)/len(res):.6e} deg")
         print(f"  max as command steps  {max(res)/STEP_DEG:.6e}")
         print(f"  worst pose            G{worst[0]:04d} {worst[1]}  "
               f"theta3={worst[4]:.4f}  d1={worst[5]:+.3e} d2={worst[6]:+.3e}")
-    if bad:
-        neg = [r for r in bad if r[9] < 0.0]
+    if res_ref:
+        # Reported separately rather than pooled: they are a different branch
+        # of the solver and pooling would hide either one behind the other.
+        print(f"  max |d theta| on the reflected rows   {max(res_ref):.6e} deg")
+    if not_plain:
+        neg = [r for r in not_plain if r[9] < 0.0]
         pos_ok = [r for r in ok if r[9] < 0.0]
-        print(f"  of the not-OK rows, r < 0   {len(neg)} of {len(bad)}")
-        print(f"  of the OK rows,     r < 0   {len(pos_ok)} of {len(ok)}")
-        poses_bad = len({r[0] for r in bad})
-        print(f"  poses with >=1 not-OK leg   {poses_bad}")
-        print(f"  poses with all six OK       {len({r[0] for r in rows}) - poses_bad}")
+        print(f"  of the not-plain-OK rows, r < 0   {len(neg)} of {len(not_plain)}")
+        print(f"  of the OK rows,           r < 0   {len(pos_ok)} of {len(ok)}")
+        poses_bad = len({r[0] for r in not_plain})
+        print(f"  poses with >=1 not-plain-OK leg   {poses_bad}")
+        print(f"  poses with all six plain OK       {len({r[0] for r in rows}) - poses_bad}")
     return {"rows": len(rows), "ok": len(ok), "bad": len(bad),
+            "reflected": len(reflected),
+            "max_reflected_deg": max(res_ref) if res_ref else None,
             "max_deg": max(res) if res else None,
             "mean_deg": sum(res)/len(res) if res else None}
 
