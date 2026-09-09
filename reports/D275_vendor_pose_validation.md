@@ -7,8 +7,9 @@ would ship. `hex_derive` is called directly and `hex_config_validate` is **not**
 because validate would reject configurations the geometry is nonetheless required to
 be correct on.
 
-**Table 2 does test a shipped configuration:** the 284 uniform-tibia poses at the one
-fixed `theta3_deg` the v1 config carries.
+**Table 2 does test a shipped configuration:** **48 distinct configurations across 284
+uniform-tibia poses**, at the one fixed `theta3_deg` the v1 config carries (D366
+clause 2).
 
 Run 3 September 2026. Reproduce with:
 
@@ -180,11 +181,22 @@ does:
 | theta3 | R | psi | folds at theta2 > |
 |---|---|---|---|
 | -67.5000 | 156.7976 | -41.5747 | 147.1117 |
+| **-30.0000** | **180.7311** | **-18.1543** | **121.5921** |
 | 0.0000 | 186.8231 | 0.0000 | 102.9918 |
 | 54.0000 | 167.3721 | 32.9823 | 71.5507 |
 | 94.5000 | 129.9165 | 59.7933 | 49.0684 |
 | 121.5000 | 97.2468 | 80.9154 | **34.6722** |
 | 135.0000 | 79.8219 | 93.9054 | 27.8418 |
+
+**The `-30.0000` row is the shipped `theta3_deg` and was missing from this table.**
+It is added here carrying **121.5921**, and it supersedes **121.1461**, which
+`MPTASK_10` §1.1 published for this row on 3 September. That figure was not a rounding
+difference: it is `arccos(-L1/R)` taken from the `theta3 = 0.0000` row composed with
+`psi` from the `-30.0000` row, `102.9918 - (-18.1543) = 121.1460624685`, exact to every
+printed digit. **The correction moves the boundary further from the data, so §5's
+conclusion is strengthened rather than weakened.** Every row above is recomputed
+independently per `theta3` by `tests/test_fold_boundary.py`, which is the guard that
+would have caught the composition.
 
 **878 of the 1,066 refusals sit at `theta3 = 121.5000`**, where a femur angle above
 34.6722 deg is enough to fold the foot behind the axis. The vendor uses 40.5000 deg
@@ -197,7 +209,7 @@ loses them.
 
 ---
 
-## 5. Table 2 — 284 uniform-tibia poses at one fixed theta3
+## 5. Table 2 — 48 distinct configurations across 284 uniform-tibia poses, at one fixed theta3
 
 `reports/d275_table2_fixed_theta3.csv`, 1,704 rows = 284 poses x 6 legs.
 
@@ -239,7 +251,9 @@ tucking it, `R` is 180.7311 and the fold boundary sits far above any femur angle
 the corpus. Every row solves.
 
 **This is the table that tests a shipped configuration**, and the shipped
-configuration passes on the 284.
+configuration passes on **48 distinct configurations across 284 poses** (D366
+clause 2) — not on 284 independent ones. At this `theta3` the fold boundary is
+**121.5921 deg**, above every femur angle in the corpus, so every row solves.
 
 ---
 
@@ -265,6 +279,7 @@ than assumed:**
 ```
 from the 110 non-uniform poses    168 refusals of  660 rows   25.4545 %
 from the 284 uniform poses        898 refusals of 1704 rows   52.7000 %
+     (48 distinct configurations across those 284 poses, D366 clause 2)
                                  ----
                                  1066
 ```

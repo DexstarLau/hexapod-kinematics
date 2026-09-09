@@ -235,7 +235,8 @@ def table1(lib, k, frames):
             der = HexDerived()
             e = lib.hex_derive(ctypes.byref(cfg), ctypes.byref(der))
             if e != 0:
-                rows.append((gid, leg, t1, t2, t3, None, None, None, CFG_ERR[e]))
+                rows.append((gid, leg, t1, t2, t3, None, None, None,
+                             status_name(e, CFG_ERR)))
                 continue
             st, d1, d2, xyz = round_trip(lib, cfg, der, t1, t2)
             rows.append((gid, leg, t1, t2, t3, d1, d2, xyz, status_name(st),
@@ -250,7 +251,8 @@ def table2(lib, k, frames, theta3_fixed: float):
     der = HexDerived()
     e = lib.hex_derive(ctypes.byref(cfg), ctypes.byref(der))
     if e != 0:
-        raise SystemExit("hex_derive rejected the fixed theta3: " + CFG_ERR[e])
+        raise SystemExit("hex_derive rejected the fixed theta3: "
+                         + status_name(e, CFG_ERR))
     for gid, pwm, _ms in frames:
         ang = pose_angles(pwm)
         for leg in LEG_ORDER:
