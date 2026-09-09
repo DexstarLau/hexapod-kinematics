@@ -2,20 +2,28 @@
 
 [![CI](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml/badge.svg)](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue)
-![Tests](https://img.shields.io/badge/tests-143%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-169%20passing-brightgreen)
 
-Forward kinematics, inverse kinematics and a tripod gait engine for a six-legged
-walking robot, with a Python reference bound to the same C source, a test suite,
-and a visualiser.
+Forward and inverse kinematics for a six-legged walking robot, with a Python
+reference bound to the same C source and a test suite.
+
+**The tripod gait engine and the visualiser are components 5 and 8 of this
+project's scope and are not written yet.** They are listed in the status table
+below rather than in this sentence, because a summary line that names them reads
+as a claim that they exist.
 
 MP1 of a twelve-project series running August 2026 to May 2028.
 
 ---
 
-## Status — 30 August 2026
+## Status — 10 September 2026
 
-This repository is fourteen days old measured against its first milestone and
-contains, so far, its foundation and its binding layer. What is here:
+**MP1 is due 31 October 2026.** The repository is 21 days old measured from its
+20 August start. Six of the eight scope components are present; the two that are
+not are the largest single piece of remaining work and are owned by the algorithm
+workstream, not by this repository's maintainer.
+
+What is here:
 
 | Component | State |
 |---|---|
@@ -31,14 +39,28 @@ contains, so far, its foundation and its binding layer. What is here:
 | `gait_core` | due 30 Sep — algorithm workstream |
 | Python bindings to the C source | working — 26 fields, layout asserted both ways |
 | Vendor pose set, structural check | working — `tools/vendor_poses.py`, [report](docs/vendor_pose_check.md) |
-| Vendor pose set, FK residuals | **not written** — due 3 September |
-| Visualiser | **not written** |
+| Vendor pose set, FK residuals | working — [report](reports/D275_vendor_pose_validation.md), 2,364 + 1,704 rows, both CSVs regenerate byte-identical |
+| Fold-boundary guard | **executing** — every boundary recomputed independently per `theta3` |
+| Status-table guard | **executing** — `IK_STATUS` and `CFG_ERR` compared against the C enums |
+| Gait engine | **not written** — scope component 5, algorithm workstream |
+| Visualiser | **not written** — scope component 8 |
+| `tests/test_c_agreement.py` | **not written.** `hex_config.c` landed 26 August; the test named for it below still does not exist |
 
-**143 tests passing, 0 skipped.** The binding tests compile `core/` with
-`-std=c99 -Wall -Wextra -pedantic` and fail rather than skip if no compiler is
-found: a skip there would be CI green over a deliverable that never ran.
+**169 passing locally; 163 passing and 6 skipped on CI and on any machine without
+the vendor action-group file.** The six are the vendor-pose tests. The file is the
+manufacturer's, is not redistributable, and is therefore not on a runner — see
+`docs/THIRD_PARTY.md`.
 
-Nothing in this README claims work that has not been done.
+**The skips are named because a skip is CI green over something that never ran.**
+Everything that can run without that file does run: the binding tests compile
+`core/` with `-std=c99 -Wall -Wextra -pedantic` and **fail** rather than skip if no
+compiler is found, and the two guards added on 9 September read the headers as text
+so they need neither the vendor file nor a compiler.
+
+**150 -> 163 is thirteen added tests, not a regression from 156.**
+
+Nothing in this README claims work that has not been done. Where something is not
+written, the table above says so by name.
 
 ---
 
@@ -201,7 +223,10 @@ precision convention requires on a 100 mm quantity, so the analysis path reads t
 JSON in double and never goes through C.
 
 That separation is only safe if the two are checked against each other, which is
-what `tests/test_c_agreement.py` will do once `hex_config.c` lands.
+what `tests/test_c_agreement.py` is for. **`hex_config.c` landed on 26 August and
+that test has still not been written.** It is named here rather than quietly
+dropped: the separation above is currently unchecked, and that is a gap, not a
+design.
 
 Neither path hard-codes anything. The cores ship no default configuration and
 there is no `hex_config_default()` — a core with no defaults cannot run on a stale

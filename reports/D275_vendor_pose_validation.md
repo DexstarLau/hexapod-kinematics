@@ -150,11 +150,27 @@ partition; what was a refusal is now a warning carrying an answer.**
 not a claim about the current core. §4.1's finding is untouched by the change: it was
 always about the sign of `r`, never about which status the sign produced.
 
+**Re-measured on 9 September against the repaired tool**, `MPTASK_12` §1:
+
+```
+1,066 of 1,066 not-plain-OK rows have r < 0    exact, IK_W_REFLECTED, pose written
+    0 of 1,298 plain-OK     rows have r < 0
+reflected residual  1.525879e-05 deg           matches D342 section 3 to the digit
+```
+
+**The partition survives the repair in both directions.** The three-way split does not
+blur it.
+
+**And §4.1's corrected fold boundary is now carried by two independent paths.** The
+compiled `hex_derive` through `ctypes` prints `R = 180.7311`, `psi = -18.1543` at
+`theta3 = -30.0000`; double-precision Python from the three link lengths gives the same
+two values, and 121.5921 from them.
+
 **On every row it solves, the geometry closes at the float32 floor** — four orders of
 magnitude below the `0.1350` command grid, so no residual here could mask a real
 reach failure.
 
-### 4.1 The 1,066 refusals are one property, and the partition is exact
+### 4.1 The 1,066 reflected rows are one property, and the partition is exact
 
 **Every refusing row has `r = L1 + R*cos(theta2 + psi) < 0`. No solving row does.**
 1,066 of 1,066 and 0 of 1,298 — an exact partition in both directions, which is what
@@ -169,8 +185,11 @@ as `sqrt(x^2 + y^2)`, which is `|r|`, and the sign is gone.
 recover the pose from position alone: the same `(x, y, z)` is reached by
 `(theta1, theta2)` with `r < 0` and by `(theta1 + 180deg, theta2')` with `r > 0`.
 
-**`ik_solve_leg` refuses rather than returning the wrong one of the two, and that is
-correct.** It is reported because `ik_core.h` does not say so. The header describes
+**`ik_solve_leg` does not return the wrong one of the two, and that is correct.**
+Before D342 it refused; since `COREDROP_11` applied D342 clause 3 it returns
+`IK_W_REFLECTED` with the exact pose written, on all three `ik_proj_t` modes. **Either
+way it never silently returns the far pre-image**, which is the property this section is
+about. It is reported because `ik_core.h` does not say so. The header describes
 the reachable set as the surface at distance `R` from the femur axis; it is the
 **half** of that surface with `L1 + R*cos(Theta) > 0`. A caller reading only the
 header would expect these poses to solve.
