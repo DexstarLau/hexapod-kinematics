@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml/badge.svg)](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue)
-![Tests](https://img.shields.io/badge/tests-181%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-186%20passing-brightgreen)
 
 Forward and inverse kinematics for a six-legged walking robot, with a Python
 reference bound to the same C source and a test suite.
@@ -42,11 +42,12 @@ What is here:
 | Vendor pose set, FK residuals | working — [report](reports/D275_vendor_pose_validation.md), 2,364 + 1,704 rows, both CSVs regenerate byte-identical |
 | Fold-boundary guard | **executing** — every boundary recomputed independently per `theta3` |
 | Status-table guard | **executing** — `IK_STATUS` and `CFG_ERR` compared against the C enums |
-| Gait engine | **not written** — scope component 5, algorithm workstream |
-| Visualiser | **not written** — scope component 8 |
+| Gait engine | working — `core/gait_core.{h,c}`, tripod, half-sine, behind the frozen API |
+| Attitude filter | working — `core/att_core.{h,c}`, complementary, Euler kinematics. **`att_config_t` is unratified and its fields may move** |
+| Visualiser | **not written** — scope component 8, **and it is this repository's**, not the algorithm workstream's |
 | `tests/test_c_agreement.py` | working — `hex_derive` and `ik_fk_leg` in `float` against `sim/derive.py` in double, 4,440 comparisons, worst 14.4% of the error budget |
 
-**181 passing locally; 175 passing and 6 skipped on CI and on any machine without
+**186 passing locally; 180 passing and 6 skipped on CI and on any machine without
 the vendor action-group file.** The six are the vendor-pose tests. The file is the
 manufacturer's, is not redistributable, and is therefore not on a runner — see
 `docs/THIRD_PARTY.md`.
@@ -57,7 +58,7 @@ Everything that can run without that file does run: the binding tests compile
 compiler is found, and the two guards added on 9 September read the headers as text
 so they need neither the vendor file nor a compiler.
 
-**150 -> 163 -> 175 is twenty-five added tests, not a regression from 156.**
+**150 -> 163 -> 175 -> 180 is thirty added tests, not a regression from 156.**
 
 Nothing in this README claims work that has not been done. Where something is not
 written, the table above says so by name.
