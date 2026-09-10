@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml/badge.svg)](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue)
-![Tests](https://img.shields.io/badge/tests-169%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-181%20passing-brightgreen)
 
 Forward and inverse kinematics for a six-legged walking robot, with a Python
 reference bound to the same C source and a test suite.
@@ -44,9 +44,9 @@ What is here:
 | Status-table guard | **executing** — `IK_STATUS` and `CFG_ERR` compared against the C enums |
 | Gait engine | **not written** — scope component 5, algorithm workstream |
 | Visualiser | **not written** — scope component 8 |
-| `tests/test_c_agreement.py` | **not written.** `hex_config.c` landed 26 August; the test named for it below still does not exist |
+| `tests/test_c_agreement.py` | working — `hex_derive` and `ik_fk_leg` in `float` against `sim/derive.py` in double, 4,440 comparisons, worst 14.4% of the error budget |
 
-**169 passing locally; 163 passing and 6 skipped on CI and on any machine without
+**181 passing locally; 175 passing and 6 skipped on CI and on any machine without
 the vendor action-group file.** The six are the vendor-pose tests. The file is the
 manufacturer's, is not redistributable, and is therefore not on a runner — see
 `docs/THIRD_PARTY.md`.
@@ -57,7 +57,7 @@ Everything that can run without that file does run: the binding tests compile
 compiler is found, and the two guards added on 9 September read the headers as text
 so they need neither the vendor file nor a compiler.
 
-**150 -> 163 is thirteen added tests, not a regression from 156.**
+**150 -> 163 -> 175 is twenty-five added tests, not a regression from 156.**
 
 Nothing in this README claims work that has not been done. Where something is not
 written, the table above says so by name.
@@ -223,10 +223,19 @@ precision convention requires on a 100 mm quantity, so the analysis path reads t
 JSON in double and never goes through C.
 
 That separation is only safe if the two are checked against each other, which is
-what `tests/test_c_agreement.py` is for. **`hex_config.c` landed on 26 August and
-that test has still not been written.** It is named here rather than quietly
-dropped: the separation above is currently unchecked, and that is a gap, not a
-design.
+what `tests/test_c_agreement.py` does. **It was written on 10 September, sixteen
+days after `hex_config.c` landed**, and for those sixteen days the claim that the
+two paths agreed was an assumption wearing a README sentence.
+
+The tolerance is `8 * FLOAT32_EPS * (L1 + L2 + L3)` — a budget against the leg's
+characteristic reach, not against each output's own magnitude. A purely relative
+tolerance was tried first and is wrong here: near `r = 0` a small output carries
+error accumulated on large intermediates, and measured against itself it looks
+like a precision collapse that is not happening. **The tolerance is a proposal
+under review by the algorithm workstream and may change.**
+
+**It compares; it does not validate.** Two implementations of the same wrong
+formula agree perfectly. Only measurement settles correctness.
 
 Neither path hard-codes anything. The cores ship no default configuration and
 there is no `hex_config_default()` — a core with no defaults cannot run on a stale
