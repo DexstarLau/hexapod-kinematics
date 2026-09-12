@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml/badge.svg)](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue)
-![Tests](https://img.shields.io/badge/tests-201%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-206%20passing-brightgreen)
 
 Forward and inverse kinematics for a six-legged walking robot, with a Python
 reference bound to the same C source and a test suite.
@@ -16,7 +16,7 @@ MP1 of a twelve-project series running August 2026 to May 2028.
 
 ---
 
-## Status — 12 September 2026
+## Status — 13 September 2026
 
 **MP1 is due 31 October 2026.** All eight scope components are present. One of
 them, the gait engine, runs but does not keep its stance feet planted. That is the
@@ -41,13 +41,13 @@ What is here:
 | Vendor pose set, FK residuals | working — [report](reports/D275_vendor_pose_validation.md), 2,364 + 1,704 rows, both CSVs regenerate byte-identical |
 | Fold-boundary guard | **executing** — every boundary recomputed independently per `theta3` |
 | Status-table guard | **executing** — `IK_STATUS` and `CFG_ERR` compared against the C enums |
-| Gait engine | **runs; its stance feet slide** — `core/gait_core.{h,c}`. On a 6 s straight walk at 83.7 mm/s the visualiser reads up to 50.4 mm of world-frame drift in one contact run, on a corner leg, counting a foot in contact while it is within `body_bob_budget_mm` of the lowest foot; D58 puts zero. Reported to the algorithm workstream |
-| Attitude filter | working — `core/att_core.{h,c}`, complementary, Euler kinematics. `att_config_t` ratified as filed (D388). **`att_step` still returns `void`; D389 amends it to `int`, due from the algorithm workstream** |
+| Gait engine | **runs; ruled non-conforming to D58 and D11 (D402)** — `core/gait_core.{h,c}`. On a 6 s straight walk at 83.7 mm/s the visualiser reads up to 50.4 mm of world-frame drift in one contact run on a corner leg, and 42.1024 mm under a contact rule admitting no lift-off frame at all, where D58 puts zero. Reproduced independently by the algorithm workstream. **A corrected stance path exists there and is held, not withheld: it drives stance drift to 0.0001 mm and breaks D208's tripod share, which is a geometry question now with coordination (D403).** Millimetre figures here are a stance derived from the quarantined `theta2_nom_deg` (D260) |
+| Attitude filter | working — `core/att_core.{h,c}`, complementary, Euler kinematics. `att_config_t` ratified as filed (D388); **`att_step` returns `int` per D389** — 0 valid, non-zero not, `out_rpy` written either way. Every result on the record is from synthetic input: no IMU log in D78's form exists |
 | Visualiser | working — `sim/visualise.py`. Drives `gait_core` through its frozen API, rebuilds the feet in double, measures each stance foot's drift in the world frame and writes a self-contained HTML page. 16 tests, each shown to fail when what it guards is broken |
 | D275 vendor-file checks | **run on request** — `tools/check_d275_pins.py`. No longer tests: as tests they skipped on every machine without the vendor file |
 | `tests/test_c_agreement.py` | working — `hex_derive` and `ik_fk_leg` in `float` against `sim/derive.py` in double, 4,440 comparisons, worst 14.4% of the error budget |
 
-**201 passing and 0 skipped, on CI and on any machine.** Until 12 September six
+**206 passing and 0 skipped, on CI and on any machine.** Until 12 September six
 vendor-pose tests skipped wherever the manufacturer's action-group file was absent,
 which in practice was everywhere: the file is not redistributable
 (`docs/THIRD_PARTY.md`). **A skip is CI green over something that never ran**, so
@@ -59,8 +59,8 @@ Everything else runs everywhere: the binding tests compile
 compiler is found, and the two guards added on 9 September read the headers as text
 so they need neither the vendor file nor a compiler.
 
-**180 -> 201 is sixteen visualiser tests and five tests of the D275 check tool.** The
-six vendor tests that left were not running anywhere.
+**180 -> 201 -> 206** is sixteen visualiser tests, five tests of the D275 check tool and
+five on `att_step`'s D389 return. The six vendor tests that left were not running anywhere.
 
 Nothing in this README claims work that has not been done. Where something is not
 written, the table above says so by name.
@@ -138,7 +138,7 @@ python -m sim.visualise --vx 83.7 --vy 0 --omega 0 --seconds 6 --supply swing_ep
 Tested on Python 3.14 with pytest 9. `pyproject.toml` pins the module search
 path so behaviour does not depend on the pytest version.
 
-**201 passing, 0 skipped.**
+**206 passing, 0 skipped.**
 
 ---
 

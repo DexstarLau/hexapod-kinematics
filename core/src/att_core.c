@@ -41,19 +41,18 @@ void att_init(const att_config_t *cfg)
     g_roll = g_pitch = g_yaw = 0.0f;
 }
 
-void att_step(const float gyro[3], const float accel[3],
-              float dt_ms, float out_rpy[3])
+int att_step(const float gyro[3], const float accel[3],
+             float dt_ms, float out_rpy[3])
 {
-    /* D20's signature returns void, so there is no channel to report a
-     * missing att_init. Writing zeros is the only defined thing available and
-     * is better than reading g_cfg's indeterminate contents. RAISED, not
-     * silently accepted: a void return on a function that can fail is a gap
-     * in the ratified interface, and it is reported to coordination rather
-     * than repaired here (RULE section 3 — report the gap, do not add the
-     * return code a decision did not authorise). */
+    /* D389 supplied the channel v1 reported as missing. The gap is now closed
+     * by decision rather than by this workstream's initiative: non-zero says
+     * the estimate is not valid, and out_rpy is still written so no caller is
+     * left holding indeterminate floats. */
     if (!g_ready) {
         out_rpy[0] = out_rpy[1] = out_rpy[2] = 0.0f;
-        return;
+        /* A single non-zero value, not a new enum. D389 authorises "non-zero";
+         * a code SET is an interface this workstream may not add (RULE 3). */
+        return 1;
     }
 
     float dt_s = dt_ms * 0.001f;
@@ -85,7 +84,7 @@ void att_step(const float gyro[3], const float accel[3],
         g_yaw = 0.0f;                       /* yaw is relative to HERE */
         g_seeded = 1;
         out_rpy[0] = g_roll; out_rpy[1] = g_pitch; out_rpy[2] = g_yaw;
-        return;
+        return 0;                           /* seeded estimate is valid */
     }
 
     /* --- 4. Gyro propagation, EULER KINEMATICS, not the naive sum.
@@ -150,4 +149,6 @@ void att_step(const float gyro[3], const float accel[3],
     out_rpy[0] = g_roll;
     out_rpy[1] = g_pitch;
     out_rpy[2] = g_yaw;
+
+    return 0;
 }

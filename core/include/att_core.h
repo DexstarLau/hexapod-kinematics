@@ -58,7 +58,22 @@ typedef struct {
      * below it the accelerometer does. Sets the crossover between gyro drift
      * and accelerometer noise. Gait bob is a clean periodic signal at gait
      * frequency (D11's observability argument) and this constant decides
-     * whether the filter tracks it or rejects it. */
+     * whether the filter tracks it or rejects it.
+     *
+     * D392: tau_s IS NOT CHOSEN BY TASTE. Under an undeclared residual gyro
+     * bias the steady-state tilt error of this filter is
+     *
+     *     error_deg = residual_bias_dps * tau_s          [deg/s * s = deg]
+     *
+     * verified against this implementation across sixteen (bias, tau) pairs,
+     * ratio 1.0000 in every one. So given a tolerable tilt error and a
+     * measured residual bias, tau_s follows:
+     *
+     *     tau_s = tolerable_error_deg / residual_bias_dps
+     *
+     * NOT HELD, and it is what stops the formula being usable today: the
+     * residual bias after D78's stationary segment. Every result on the record
+     * is from synthetic input. Do not invent one. */
     float tau_s;
 
     /* Accelerometer trust gate, m/s^2. When | ||a|| - gravity_mps2 | exceeds
@@ -89,9 +104,19 @@ void att_init(const att_config_t *cfg);
  *
  * Always writes three finite floats. out_rpy[0] roll, [1] pitch, [2] yaw,
  * each wrapped into (-180, +180]. Yaw carries no absolute reference; see the
- * header note. */
-void att_step(const float gyro[3], const float accel[3],
-              float dt_ms, float out_rpy[3]);
+ * header note.
+ *
+ * RETURN, D389, amending D20 part 1 to this extent and no further:
+ *   0        the estimate is valid
+ *   non-zero the estimate is NOT valid. At minimum this is returned when
+ *            att_init has not been called, which is the ONLY non-zero case
+ *            this implementation currently produces. Test for zero, not for a
+ *            particular value: no code set is defined and none is implied.
+ * out_rpy IS STILL WRITTEN ON EVERY CALL, three finite floats, never NaN,
+ * never left indeterminate — including on a non-zero return. A caller that
+ * ignores the return therefore gets v1's behaviour exactly. */
+int att_step(const float gyro[3], const float accel[3],
+             float dt_ms, float out_rpy[3]);
 
 #ifdef __cplusplus
 }
