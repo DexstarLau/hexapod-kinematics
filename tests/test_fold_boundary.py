@@ -25,8 +25,8 @@ neither failure needed the vendor pose file to catch.
     across 284 poses*, never as *284*.  A bare 284 says the shipped
     configuration passed 284 independent checks; it passed 48.  That is test 2.
 
-NEITHER TEST READS THE VENDOR FILE, so unlike tests/test_vendor_poses.py and
-tests/test_d275_residuals.py both of these RUN ON CI.  D366 clause 4 is explicit
+NEITHER TEST READS THE VENDOR FILE, so unlike the six D275 checks in
+tools/check_d275_pins.py both of these RUN ON CI.  D366 clause 4 is explicit
 that no vendor-dependent test is required, on the ground that a skipping test is
 CI green over something that never ran.  These two are the part that can run.
 

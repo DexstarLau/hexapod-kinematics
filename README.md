@@ -2,26 +2,26 @@
 
 [![CI](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml/badge.svg)](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue)
-![Tests](https://img.shields.io/badge/tests-186%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-201%20passing-brightgreen)
 
 Forward and inverse kinematics for a six-legged walking robot, with a Python
 reference bound to the same C source and a test suite.
 
-**The tripod gait engine and the visualiser are components 5 and 8 of this
-project's scope and are not written yet.** They are listed in the status table
-below rather than in this sentence, because a summary line that names them reads
-as a claim that they exist.
+**All eight scope components are in the repository. The visualiser, component 8,
+shows that the gait engine, component 5, does not yet walk the way D58 requires:
+its stance feet slide.** The status table below says so by name rather than this
+sentence calling the engine done.
 
 MP1 of a twelve-project series running August 2026 to May 2028.
 
 ---
 
-## Status — 10 September 2026
+## Status — 12 September 2026
 
-**MP1 is due 31 October 2026.** The repository is 21 days old measured from its
-20 August start. Six of the eight scope components are present; the two that are
-not are the largest single piece of remaining work and are owned by the algorithm
-workstream, not by this repository's maintainer.
+**MP1 is due 31 October 2026.** All eight scope components are present. One of
+them, the gait engine, runs but does not keep its stance feet planted. That is the
+algorithm workstream's to fix, because `core/` is not edited here; it has been
+reported with the visualiser's figures.
 
 What is here:
 
@@ -36,29 +36,31 @@ What is here:
 | The three swing guards | **executing** across 9 (stride, duty) points |
 | `ik_core` / `gait_core` headers | received — `core/include/` |
 | `ik_core.c`, `hex_config.c` | received 26 Aug — `core/src/` |
-| `gait_core` | due 30 Sep — algorithm workstream |
 | Python bindings to the C source | working — 26 fields, layout asserted both ways |
 | Vendor pose set, structural check | working — `tools/vendor_poses.py`, [report](docs/vendor_pose_check.md) |
 | Vendor pose set, FK residuals | working — [report](reports/D275_vendor_pose_validation.md), 2,364 + 1,704 rows, both CSVs regenerate byte-identical |
 | Fold-boundary guard | **executing** — every boundary recomputed independently per `theta3` |
 | Status-table guard | **executing** — `IK_STATUS` and `CFG_ERR` compared against the C enums |
-| Gait engine | working — `core/gait_core.{h,c}`, tripod, half-sine, behind the frozen API |
-| Attitude filter | working — `core/att_core.{h,c}`, complementary, Euler kinematics. **`att_config_t` is unratified and its fields may move** |
-| Visualiser | **not written** — scope component 8, **and it is this repository's**, not the algorithm workstream's |
+| Gait engine | **runs; its stance feet slide** — `core/gait_core.{h,c}`. On a 6 s straight walk at 83.7 mm/s the visualiser reads up to 50.4 mm of world-frame drift in one contact run, on a corner leg, counting a foot in contact while it is within `body_bob_budget_mm` of the lowest foot; D58 puts zero. Reported to the algorithm workstream |
+| Attitude filter | working — `core/att_core.{h,c}`, complementary, Euler kinematics. `att_config_t` ratified as filed (D388). **`att_step` still returns `void`; D389 amends it to `int`, due from the algorithm workstream** |
+| Visualiser | working — `sim/visualise.py`. Drives `gait_core` through its frozen API, rebuilds the feet in double, measures each stance foot's drift in the world frame and writes a self-contained HTML page. 16 tests, each shown to fail when what it guards is broken |
+| D275 vendor-file checks | **run on request** — `tools/check_d275_pins.py`. No longer tests: as tests they skipped on every machine without the vendor file |
 | `tests/test_c_agreement.py` | working — `hex_derive` and `ik_fk_leg` in `float` against `sim/derive.py` in double, 4,440 comparisons, worst 14.4% of the error budget |
 
-**186 passing locally; 180 passing and 6 skipped on CI and on any machine without
-the vendor action-group file.** The six are the vendor-pose tests. The file is the
-manufacturer's, is not redistributable, and is therefore not on a runner — see
-`docs/THIRD_PARTY.md`.
+**201 passing and 0 skipped, on CI and on any machine.** Until 12 September six
+vendor-pose tests skipped wherever the manufacturer's action-group file was absent,
+which in practice was everywhere: the file is not redistributable
+(`docs/THIRD_PARTY.md`). **A skip is CI green over something that never ran**, so
+they moved to `tools/check_d275_pins.py`, which runs them against your own copy and
+fails, rather than skips, when the file is missing or is not the pinned one.
 
-**The skips are named because a skip is CI green over something that never ran.**
-Everything that can run without that file does run: the binding tests compile
+Everything else runs everywhere: the binding tests compile
 `core/` with `-std=c99 -Wall -Wextra -pedantic` and **fail** rather than skip if no
 compiler is found, and the two guards added on 9 September read the headers as text
 so they need neither the vendor file nor a compiler.
 
-**150 -> 163 -> 175 -> 180 is thirty added tests, not a regression from 156.**
+**180 -> 201 is sixteen visualiser tests and five tests of the D275 check tool.** The
+six vendor tests that left were not running anywhere.
 
 Nothing in this README claims work that has not been done. Where something is not
 written, the table above says so by name.
@@ -125,12 +127,18 @@ python -m sim.emit_constants_table
 
 # needs your own copy of the vendor action-group file; see docs/THIRD_PARTY.md
 python -m tools.vendor_poses --actions "path/to/your/copy.ini"
+python -m tools.check_d275_pins --actions "path/to/your/copy.ini"
+
+# the visualiser. config/hexapod.json leaves two fields it needs unspecified, so each
+# must be supplied by name, and the page marks them as stand-ins. These two values
+# are examples, not recommendations.
+python -m sim.visualise --vx 83.7 --vy 0 --omega 0 --seconds 6 --supply swing_eps_mm_s=3.7 --supply stale_ramp_ms=437.3 --out walk.html
 ```
 
 Tested on Python 3.14 with pytest 9. `pyproject.toml` pins the module search
 path so behaviour does not depend on the pytest version.
 
-**143 passing, 0 skipped.**
+**201 passing, 0 skipped.**
 
 ---
 
@@ -232,8 +240,9 @@ The tolerance is `8 * FLOAT32_EPS * (L1 + L2 + L3)` — a budget against the leg
 characteristic reach, not against each output's own magnitude. A purely relative
 tolerance was tried first and is wrong here: near `r = 0` a small output carries
 error accumulated on large intermediates, and measured against itself it looks
-like a precision collapse that is not happening. **The tolerance is a proposal
-under review by the algorithm workstream and may change.**
+like a precision collapse that is not happening. **D383 keeps `N_ULP = 8`** and
+requires the test file to state that it checks implementation agreement, not D147's
+reporting precision; the file does.
 
 **It compares; it does not validate.** Two implementations of the same wrong
 formula agree perfectly. Only measurement settles correctness.

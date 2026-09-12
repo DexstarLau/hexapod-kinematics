@@ -343,7 +343,7 @@ choice and does not transfer to whatever D260 eventually rules.
 | | |
 |---|---|
 | `tools/d275_fk_residuals.py` | the run |
-| `tests/test_d275_residuals.py` | 5 tests pinning §2's five figures and §4.1's partition |
+| `tools/check_d275_pins.py` | six checks pinning §2's figures, §4.1's partition and the table-2 no-fold result; run on request against a supplied copy of the vendor file. Until 12 September 2026 they were `tests/test_d275_residuals.py`, where they skipped on every machine without the file |
 | `reports/d275_table1_per_pose_theta3.csv` | 2,364 rows |
 | `reports/d275_table2_fixed_theta3.csv` | 1,704 rows |
 

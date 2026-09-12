@@ -1,5 +1,17 @@
 """`hex_derive` and `ik_fk_leg` in float, against sim/derive.py in double.
 
+THE PREDICATE, STATED HERE BECAUSE D383 REQUIRES IT
+---------------------------------------------------
+**This file checks float32-against-double IMPLEMENTATION AGREEMENT at `N_ULP = 8`
+ulps of the leg's reach.** Each C output and its double counterpart must differ
+by no more than `N_ULP * FLOAT32_EPS * (L1 + L2 + L3)`.
+
+**It does not check D147's four-decimal REPORTING agreement**, and passing here
+says nothing about it. D147 is a convention for how one computed figure is
+written down; agreement across a float32/double boundary is a different
+predicate about a different quantity. D383 keeps the budget at 8 ulps on that
+ground and rules that the two are not in conflict.
+
 WHY THIS FILE EXISTS, AND WHY IT IS LATE
 -----------------------------------------
 `sim/derive.Derived`'s docstring has said since 27 August that its fields mirror
@@ -69,14 +81,15 @@ WHAT IT HAS NO POWER OVER
   residuals applies here word for word: agreement is self-consistency.  Only
   measurement settles correctness, and that is A-day's.
 
-ONE THING FOR THE RECORD, BECAUSE IT IS A REAL TENSION
-  D147 reports lengths to four decimal places in millimetres and rules that two
-  figures agree when they match at the reported precision.  **The budget above is
-  2.18e-04 mm at full reach, which is larger than one unit in the fourth decimal
-  place.**  The measured worst case, 2.79e-05 mm, is comfortably inside it, so the
-  two paths do agree at D147's precision today -- but the error budget does not
-  guarantee that they will.  Stated rather than left for someone to discover when
-  a fourth decimal place disagrees and looks like a defect.
+WHY A BUDGET WIDER THAN ONE UNIT IN THE FOURTH DECIMAL PLACE IS NOT A DEFECT
+  The budget is 2.18e-04 mm at full reach, which exceeds one unit in D147's fourth
+  decimal place.  **This docstring previously called that a tension.  It is not
+  one, and D383 says why:** the budget bounds float32-against-double arithmetic,
+  and D147 governs how a reported figure is written.  A future disagreement in a
+  fourth decimal place, inside this budget, is not a failure of this file, and
+  this file is not the check for it.  The earlier paragraph also quoted a worst
+  case of 2.79e-05 mm with no grid beside it; the figure with its grid is in
+  MEASURED below.
 
 MEASURED, 10 September, at `cd3f5c6` plus this file: 1,480 poses over `theta1`
 -90..90 and `theta2` -60..135 in 5 degree steps, three axes each, **4,440

@@ -35,9 +35,9 @@ direct subscript raises KeyError with no diagnosis, so the failure said what was
 missing but not why it mattered.
 
 NO VENDOR DATA AND NO COMPILER.  The enums are parsed out of the headers as text
-and the tables are imported.  So unlike tests/test_d275_residuals.py this file
-does not skip, which is D366 clause 4's point: a skipping test is CI green over
-something that never ran.
+and the tables are imported.  So, like every file in tests/ since the six D275
+checks moved to tools/check_d275_pins.py, this file does not skip, which is D366
+clause 4's point: a skipping test is CI green over something that never ran.
 """
 
 import re

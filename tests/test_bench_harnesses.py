@@ -10,9 +10,18 @@ and leave it to Mini Project to decide whether they become tests and where.
 is a harness that stops running. `gait_core` and `att_core` are the two newest
 files in `core/` and the two with no other coverage at all: the Python side has no
 mirror of either, so `tests/test_c_agreement.py` cannot reach them and neither can
-anything else in `tests/`. Wrapping them here puts twenty-eight property checks on
-CI across all four ubuntu/windows x 3.12/3.14 combinations instead of on one
-machine on one day.
+anything else in `tests/`. Wrapping them here puts both harnesses on CI across all
+four ubuntu/windows x 3.12/3.14 combinations instead of on one machine on one day.
+
+**What they run is counted in printed `[PASS]` lines, not in checks: fourteen from
+`gait_bench_check`, sixteen from `att_bench_check`,** the floors in `HARNESSES`
+below. One printed line can cover several cases, so neither figure is a count of
+checks. This paragraph previously said *twenty-eight property checks*, a number
+no line of this file produces; it was corrected on 12 September.
+
+**`source_sha_prefix` in `HARNESSES` is a record, not an assertion.** No test reads
+it, so a harness edited in place that still compiles cleanly and still prints its
+floor passes here.
 
 **`tests/bench/` rather than `core/src/`**, because `core/OWNERSHIP.md` and D6.1
 make `core/` the algorithm workstream's and forbid I/O in it, and both harnesses
