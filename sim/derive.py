@@ -1,9 +1,9 @@
-"""The double-precision analysis path: derivation and the fourteen sweep outputs.
+"""The double-precision analysis path: derivation and the sweep outputs.
 
 WHY THIS IS NOT A REIMPLEMENTATION OF hex_derive
 ------------------------------------------------
 The algorithm workstream's 21 August handoff §2 rules that config/hexapod.json has
-two consumers, and that the fourteen outputs must NOT be computed through the C
+two consumers, and that the sweep outputs must NOT be computed through the C
 float path:
 
     config/hexapod.json
@@ -101,20 +101,50 @@ def derive(k):
     )
 
 
-# The fourteen outputs. Order and expressions are the algorithm workstream's §3.
+# The sweep outputs. D415 clause 1 rules the set at FIFTEEN; FOURTEEN are named here.
+# MEMBERSHIP IS THE REGISTER'S, NOT THIS LIST'S (D415 clause 4): this list is an
+# implementation artefact, and outputs are reported BY NAME, never by position
+# (D415 clause 5). The order below carries no meaning and must not be quoted as a
+# numbering.
+#
+# THE MISSING FIFTEENTH IS NOT GUESSED. Removing body_speed_mm_s (D415 clause 3) left
+# thirteen, and output 15 (D263) makes fourteen. The register names quantities this
+# list does not compute - D97's femur-to-coxa ratio (renamed by D102) and co-binding
+# clearance, with D99's expressions - and which of them, if any, is the fifteenth is
+# coordination's to rule. Reported in FINDING_21; nothing is added here until then.
 OUTPUT_NAMES = [
     "r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
     "theta_midswing_deg", "theta_span_deg", "femur_travel_swing_deg",
     "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm",
-    "swing_duration_ms", "cycle_duration_ms", "body_speed_mm_s",
+    "swing_duration_ms", "cycle_duration_ms", "foot_dz_per_quantum_mm",
 ]
+
+# One output, evaluated at two inputs, so the set stays at fifteen while the row
+# carries sixteen columns (COREDROP_21 §1.1). Both inputs are read BY NAME at run
+# time; neither value is written into this file.
+QUANTUM_INPUTS = ("command_step_deg", "joint_accuracy_deg")
+OUTPUT_COLUMNS = OUTPUT_NAMES[:-1] + [
+    "foot_dz_per_quantum_mm@" + q for q in QUANTUM_INPUTS]
+
+# Rows 5, 12 and 13: the decision each cites is the source of the definition, not a
+# separate act of adoption (D415 clause 4). Presented with this mark.
+DEFINED_BY_ADOPTED_WITH_THE_SET = ("theta_midswing_deg", "swing_duration_ms",
+                                   "cycle_duration_ms")
 
 OUTPUT_UNITS = {
     "r_nom_mm": "mm", "body_height_mm": "mm", "theta_nom_deg": "deg",
     "theta_extreme_deg": "deg", "theta_midswing_deg": "deg", "theta_span_deg": "deg",
     "femur_travel_swing_deg": "deg", "coxa_sweep_deg": "deg", "bob_mm": "mm",
     "a_eff_extreme_mm": "mm", "tau_femur_peak_kgcm": "kg*cm",
-    "swing_duration_ms": "ms", "cycle_duration_ms": "ms", "body_speed_mm_s": "mm/s",
+    "swing_duration_ms": "ms", "cycle_duration_ms": "ms",
+    "foot_dz_per_quantum_mm": "mm per quantum",
+}
+
+# What each output's figure is computed as, written out so a figure is never
+# quoted against a different sentence (D415 clause 6).
+OUTPUT_EXPRESSIONS = {
+    "theta_span_deg": "theta_nom_deg - theta_midswing_deg  (D100; COREDROP_21 §2)",
+    "foot_dz_per_quantum_mm": "a_eff_nom_mm * q_deg * pi / 180, LINEARISED  (D263; COREDROP_21 §1)",
 }
 
 
@@ -123,7 +153,10 @@ class UnreachableStride(Exception):
 
 
 def sweep_point(k, stride_mm, duty_factor):
-    """One row of the sweep: the fourteen outputs at one (stride, duty).
+    """One row of the sweep: the named outputs at one (stride, duty).
+
+    The row holds OUTPUT_COLUMNS in that order - fifteen floats for fourteen names,
+    because output 15 is one output evaluated at two inputs.
 
     Returns (row, derived, trace) where trace carries the intermediate angles the
     span guard must recompute from - never from the stored outputs.
@@ -164,6 +197,7 @@ def sweep_point(k, stride_mm, duty_factor):
 
     swing_ms = 1000.0 * coxa_sweep * peak_factor / dtheta_peak
     cycle_ms = swing_ms / (1.0 - duty_factor)
+    bob = d.body_height_mm - R * math.sin(math.radians(theta_extreme))
 
     row = OrderedDict([
         ("r_nom_mm", d.r_nom_mm),
@@ -171,10 +205,15 @@ def sweep_point(k, stride_mm, duty_factor):
         ("theta_nom_deg", d.theta_nom_deg),
         ("theta_extreme_deg", theta_extreme),
         ("theta_midswing_deg", theta_midswing),
-        ("theta_span_deg", d.theta_nom_deg - theta_extreme),
+        # 6. D100's span over the WHOLE cycle: nominal to mid-swing. It equals the
+        #    cycle peak-to-peak only while theta_midswing <= theta_extreme, which is
+        #    swing_clearance_mm >= bob_mm; the trace carries that predicate. The
+        #    stance-only span (nominal to extreme) is a different quantity and is
+        #    kept in the trace as a diagnostic, never as this output.
+        ("theta_span_deg", d.theta_nom_deg - theta_midswing),
         ("femur_travel_swing_deg", 2.0 * (theta_extreme - theta_midswing)),
         ("coxa_sweep_deg", coxa_sweep),
-        ("bob_mm", d.body_height_mm - R * math.sin(math.radians(theta_extreme))),
+        ("bob_mm", bob),
         ("a_eff_extreme_mm", a_eff_extreme),
         # D208: the TRIPOD SHARE, not whole-robot mass. Single-leg support needs five
         # feet off the ground - a fault, not a transient - so the whole-mass product is
@@ -183,14 +222,29 @@ def sweep_point(k, stride_mm, duty_factor):
          k.value("mass_kg") / k.value("tripod_support_legs") * a_eff_extreme / 10.0),
         ("swing_duration_ms", swing_ms),
         ("cycle_duration_ms", cycle_ms),
-        ("body_speed_mm_s", 1000.0 * stride_mm / cycle_ms),
     ])
+    # Output 15 (D263, defined by Spider AI in COREDROP_21 §1). foot_dz_per_quantum_mm:
+    # LEG-frame z step of the foot for one femur quantum at the nominal stance, LINEARISED,
+    # = a_eff_nom_mm * q_deg * pi/180, evaluated at q = command_step_deg and at
+    # q = joint_accuracy_deg, both read by name. The linear form is the one that reproduces
+    # D189's and D230's four printed figures; the exact difference reproduces none.
+    for q in QUANTUM_INPUTS:
+        row["foot_dz_per_quantum_mm@" + q] = (
+            d.a_eff_nom_mm * k.value(q) * math.pi / 180.0)
 
     # D208 diagnostic. NOT one of the fourteen: it is reported, never asserted on.
     # At the D209 ceiling it reads 24.0000 kg*cm, 1.2000x stall, and that is not a
     # failure - the vendor's own posture exceeds the same form by 1.3487x while walking.
     diagnostics = OrderedDict([
         ("tau_femur_singleleg_kgcm", k.value("mass_kg") * a_eff_extreme / 10.0),
+        # The stance-only span. NOT output 6 (D100 defines output 6 over the cycle);
+        # kept so the difference stays visible and so a ruling the other way is a
+        # one-line swap rather than a re-derivation.
+        ("theta_span_stance_deg", d.theta_nom_deg - theta_extreme),
+        # D415 clause 3: a derived convenience, labelled as one. Not a sweep output.
+        ("body_speed_mm_s", 1000.0 * stride_mm / cycle_ms),
+        # COREDROP_21 §2.3: output 6 is the cycle peak-to-peak only while this holds.
+        ("span_predicate_holds", clearance >= bob),
     ])
 
     # The trace exists so that the span guard can recompute output 6 from the
@@ -227,6 +281,13 @@ def coincidence_clearance_mm(k):
 
         c = h0 - R*sin(2*Theta_extreme - Theta_0)
 
+    With output 6 as D100 defines it (Theta_0 - Theta_mid), span == travel is
+        Theta_0 - Theta_mid = 2 (Theta_extreme - Theta_mid)
+        =>  Theta_mid = 2 Theta_extreme - Theta_0
+    which is exactly this closed form. So D125's prose ("span equal to travel") and
+    D211's closed form are ONE point. They only looked like two while output 6 was
+    computed as the stance span; tests/test_d126_guards.py records the history.
+
     D211's binding rule, which this function exists to respect:
     AN INTERMEDIATE QUANTITY IS NEVER ROUNDED BEFORE IT IS MULTIPLIED. Rounding
     Theta_extreme to 4 dp before the 2x gives 9.7483; at 3 dp it gives 9.7486; the
@@ -249,10 +310,11 @@ def a_eff_max_mm(k):
         tau_femur_peak * margin_factor <= tau_servo
         (m / legs) * a_eff / 10 * margin <= tau_servo
 
-    It moves with the servo torque, the mass and the margin, all three of which are
-    live: mass is unmeasured, and the margin reverts to 3.0000 automatically if D190
-    measures loaded torque below 16 kg*cm or mass above 2.30 kg. Storing the number
-    is exactly the defect the hard-coded-constant guard exists to catch.
+    It moves with the servo torque and the mass, both of which take their measured
+    values when measured (D261). margin_factor is fixed at 2.5000 by D261, which
+    struck D209's automatic revert to 3.0000; the re-sweep still PRESENTS a second
+    column at 3.0000 because D415 clause 7 directs it. Storing the number is exactly
+    the defect the hard-coded-constant guard exists to catch.
     """
     return (k.value("tau_servo_kgcm") * 10.0 * k.value("tripod_support_legs")
             / (k.value("mass_kg") * k.value("margin_factor")))

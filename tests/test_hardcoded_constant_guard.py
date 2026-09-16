@@ -5,7 +5,7 @@ PROJECT_02 §4  - adds L3 and theta_3.
 PROJECT_04 §4  - adds command_step_deg, which moved from 0.4392 to 0.3000.
 
 Until 21 August these tests reported SKIPPED, because the guard needs a sweep and
-core/ was empty. The algorithm workstream's ruling that the fourteen outputs are
+core/ was empty. The algorithm workstream's ruling that the sweep outputs are
 computed in double from the JSON - not through the C float path - is what makes
 the guard runnable today: it is four lines, derive twice with two configs and
 assert the outputs differ. Under the rejected header-generation option a constant
@@ -28,41 +28,64 @@ STRIDE, DUTY = 60.0, 0.5
 # error too: an output that moves when it has no business moving. Each set below
 # is reasoned from the defining expressions, not read off a previous run.
 GUARDED = {
-    # mass appears in output 11 alone
+    # mass appears in tau_femur_peak_kgcm alone
     "mass_kg": (2.15, 2.60, [
         n for n in ("r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
                     "theta_midswing_deg", "theta_span_deg", "femur_travel_swing_deg",
                     "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm", "swing_duration_ms",
-                    "cycle_duration_ms", "body_speed_mm_s")]),
+                    "cycle_duration_ms", "foot_dz_per_quantum_mm@command_step_deg",
+                    "foot_dz_per_quantum_mm@joint_accuracy_deg")]),
 
-    # clearance enters output 5, and 7 through it. Nothing else sees it.
+    # clearance enters the mid-swing angle, and through it the swing travel AND
+    # theta_span_deg - which under D100 is nominal minus MID-SWING. Nothing else sees it.
     "swing_clearance_mm": (15.0, 18.0, [
         n for n in ("r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
-                    "theta_span_deg", "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm",
+                    "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm",
                     "tau_femur_peak_kgcm", "swing_duration_ms", "cycle_duration_ms",
-                    "body_speed_mm_s")]),
+                    "foot_dz_per_quantum_mm@command_step_deg",
+                    "foot_dz_per_quantum_mm@joint_accuracy_deg")]),
 
-    # peak rate is a pure time scaling: outputs 12, 13, 14 and no geometry
+    # peak rate is a pure time scaling: the two durations and no geometry
     "dtheta_peak_deg_s": (375.0, 300.0, [
         n for n in ("r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
                     "theta_midswing_deg", "theta_span_deg", "femur_travel_swing_deg",
-                    "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm")]),
+                    "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm",
+                    "foot_dz_per_quantum_mm@command_step_deg",
+                    "foot_dz_per_quantum_mm@joint_accuracy_deg")]),
 
     # L1 shifts reach but not body height, not Theta0, not the mid-swing angle -
-    # those three depend on R and Theta only
-    "coxa_length_mm": (50.0, 62.0, ["body_height_mm", "theta_nom_deg", "theta_midswing_deg"]),
+    # those depend on R and Theta only. D100's span is Theta0 minus mid-swing, so it
+    # does not see L1 either; nor does a_eff_nom_mm, so neither output-15 column does.
+    "coxa_length_mm": (50.0, 62.0, ["body_height_mm", "theta_nom_deg", "theta_midswing_deg",
+                                    "theta_span_deg",
+                                    "foot_dz_per_quantum_mm@command_step_deg",
+                                    "foot_dz_per_quantum_mm@joint_accuracy_deg"]),
 
     # the members and both angles reach everything once psi is non-zero
     "femur_length_mm":     (90.0, 97.0, []),
     "tibia_length_mm":     (90.0, 78.0, []),
     "theta3_deg":         (-30.0, -12.0, []),
     "theta2_nom_deg": (40.0, 46.0, []),
+
+    # Output 15 (D263) is what brings the quantisation constants into the guard: each
+    # moves its own column of foot_dz_per_quantum_mm and nothing else (COREDROP_21 §1.4).
+    "command_step_deg": (0.1350, 0.2400, [
+        n for n in ("r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
+                    "theta_midswing_deg", "theta_span_deg", "femur_travel_swing_deg",
+                    "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm",
+                    "swing_duration_ms", "cycle_duration_ms",
+                    "foot_dz_per_quantum_mm@joint_accuracy_deg")]),
+    "joint_accuracy_deg": (1.0000, 0.5000, [
+        n for n in ("r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
+                    "theta_midswing_deg", "theta_span_deg", "femur_travel_swing_deg",
+                    "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm",
+                    "swing_duration_ms", "cycle_duration_ms",
+                    "foot_dz_per_quantum_mm@command_step_deg")]),
 }
 
-# command_step_deg is guarded by PROJECT_04 §4 but is an actuator quantisation
-# and does not enter the fourteen geometric outputs. It is guarded separately
-# below, against the quantisation path, so that its absence here is deliberate
-# and recorded rather than an oversight.
+# Until 16 September 2026 command_step_deg and joint_accuracy_deg were guarded only
+# against their values, because no output depended on them (D263's reason for adding
+# output 15). Output 15 now exists, so both are in GUARDED above like any other input.
 
 
 class Table(object):
@@ -80,7 +103,8 @@ BASE = {
     "mass_kg": 2.15, "dtheta_peak_deg_s": 375.0,
     "swing_velocity_profile": "half_sine", "tripod_support_legs": 3,
     "tau_servo_kgcm": 20.0, "margin_factor": 2.5,
-    "stride_mm": 60.0, "coxa_length_mm_": None,
+    "stride_mm": 60.0, "command_step_deg": 0.1350, "joint_accuracy_deg": 1.0000,
+    "coxa_length_mm_": None,
 }
 del BASE["coxa_length_mm_"]
 
@@ -93,9 +117,9 @@ def test_outputs_move_when_the_constant_moves(name):
     before, _, _ = D.sweep_point(Table(BASE), STRIDE, DUTY)
     after, _, _ = D.sweep_point(Table(BASE, **{name: perturbed}), STRIDE, DUTY)
 
-    moved = [n for n in D.OUTPUT_NAMES if before[n] != after[n]]
+    moved = [n for n in D.OUTPUT_COLUMNS if before[n] != after[n]]
     assert moved, (
-        "changing {} from {} to {} left all fourteen outputs identical. Something "
+        "changing {} from {} to {} left every output column identical. Something "
         "downstream is holding a constant it should be computing.".format(
             name, original, perturbed))
 
@@ -108,7 +132,7 @@ def test_footprint_is_exactly_what_the_expressions_predict(name):
     before, _, _ = D.sweep_point(Table(BASE), STRIDE, DUTY)
     after, _, _ = D.sweep_point(Table(BASE, **{name: perturbed}), STRIDE, DUTY)
 
-    actual_untouched = [n for n in D.OUTPUT_NAMES if before[n] == after[n]]
+    actual_untouched = [n for n in D.OUTPUT_COLUMNS if before[n] == after[n]]
     assert actual_untouched == expected_untouched, (
         "{}: expected these outputs to stay put {}, but they were {}".format(
             name, expected_untouched, actual_untouched))
@@ -136,9 +160,10 @@ def test_every_guarded_name_exists_in_the_real_table():
 
 
 def test_quantisation_members_are_present_and_live():
-    """PROJECT_07 §3 gives the guard a fourth member, joint_accuracy_deg. Neither it
-    nor command_step_deg enters the fourteen geometric outputs, so both are guarded
-    against their values until the quantisation path exists."""
+    """PROJECT_07 §3 gives the guard a fourth member, joint_accuracy_deg. Both it and
+    command_step_deg now enter output 15 and are in GUARDED; their table values are
+    still pinned here because both are `provisional` and a silent change to either
+    moves every output-15 figure on the record."""
     k = C.load()
     assert k.value("command_step_deg") == 0.1350
     assert k.value("joint_accuracy_deg") == 1.0000

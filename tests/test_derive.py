@@ -1,4 +1,4 @@
-"""Acceptance tests for the fourteen-output derivation.
+"""Acceptance tests for the fifteen-output derivation.
 
 The important thing about this file: it checks against figures supplied by the
 ALGORITHM WORKSTREAM and by PROJECT_02, not against this module's own output.
@@ -29,6 +29,7 @@ LEGACY = FakeTable(
     mass_kg=2.15, dtheta_peak_deg_s=375.0,
     swing_velocity_profile="half_sine", tripod_support_legs=3,
     tau_servo_kgcm=20.0, margin_factor=2.5, stride_mm=60.0,
+    command_step_deg=0.1350, joint_accuracy_deg=1.0000,
 )
 
 
@@ -102,12 +103,30 @@ def test_unreachable_stride_raises_rather_than_returning_nonsense():
         D.sweep_point(LEGACY, 900.0, 0.5)
 
 
-def test_real_table_produces_all_fourteen_outputs():
+def test_real_table_produces_every_named_output():
+    """D415 clause 1 rules FIFTEEN. This module names FOURTEEN, and says so rather than
+    padding the list: body_speed_mm_s came out under clause 3, output 15 went in under
+    D263, and the fifteenth member is not identified in the register (FINDING_21).
+    When coordination names it, this test is the one that has to change first.
+
+    Output 15 is one output at two inputs, so fourteen names give fifteen columns."""
     k = C.load()
     row, _, _ = D.sweep_point(k, k.value("stride_mm"), k.value("duty_factor"))
-    assert list(row) == D.OUTPUT_NAMES
-    assert len(row) == 14
+    assert len(D.OUTPUT_NAMES) == 14
+    assert "foot_dz_per_quantum_mm" in D.OUTPUT_NAMES
+    assert list(row) == D.OUTPUT_COLUMNS
+    assert len(row) == 15
     assert all(isinstance(v, float) for v in row.values())
+
+
+def test_body_speed_is_not_a_sweep_output():
+    """D415 clause 3: body_speed_mm_s is NOT HELD, occupies no slot, and is never
+    reported as a sweep output. It survives only as a labelled convenience."""
+    k = C.load()
+    row, _, trace = D.sweep_point(k, k.value("stride_mm"), k.value("duty_factor"))
+    assert "body_speed_mm_s" not in D.OUTPUT_NAMES
+    assert "body_speed_mm_s" not in row
+    assert trace["body_speed_mm_s"] > 0.0
 
 
 def test_results_from_the_real_table_are_stamped_as_surrogate():
