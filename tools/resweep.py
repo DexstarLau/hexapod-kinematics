@@ -1,4 +1,18 @@
-"""The D197 re-sweep (D411 clause 3, D414, D415): run it, and write what it found.
+"""RECORD - P1-prime on MOUNT-DIRECTION footholds (D424 clause 3). NOT THE SEARCH.
+
+The search now runs on D58's lateral footholds: tools/lateral_sweep.py (D424 clause 7,
+PROJECT_23 §4). This file and reports/d197_resweep.csv are kept, unchanged in content,
+as the record of the kit's unclocked configuration that FINDING_21 reported and D419
+ruled on. Its comparands are FINDING_21's: the a_eff_nom_mm ceiling it prints is NOT
+D209's bar (D420 clause 1), and its margin-3.0000 column is a sensitivity, not a floor
+(D420 clause 2). Read the columns as that record, never as a current bar.
+
+To keep the record byte-stable while sim/derive.py grows, the output columns it
+writes are pinned to RECORD_OUTPUT_COLUMNS, the set it was published with.
+
+The original purpose, kept for the record:
+
+The D197 re-sweep (D411 clause 3, D414, D415): run it, and write what it found.
 
     python -m tools.resweep                  print the tables
     python -m tools.resweep --csv PATH       also write the CSV the tables come from
@@ -44,6 +58,15 @@ from sim import derive as D
 from sim import stance_pose as S
 
 EXTRA_POSTURES_DEG = (75.0, 80.0, 85.0)
+
+# The derive columns reports/d197_resweep.csv was published with at d0cba1a0.
+RECORD_OUTPUT_COLUMNS = (
+    "r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
+    "theta_midswing_deg", "theta_span_deg", "femur_travel_swing_deg", "coxa_sweep_deg",
+    "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm", "swing_duration_ms",
+    "cycle_duration_ms", "foot_dz_per_quantum_mm@command_step_deg",
+    "foot_dz_per_quantum_mm@joint_accuracy_deg",
+)
 D11_BODY_BUDGET_MM = 5.0000     # D11, compared against, never used in a computation
 BISECTION_ITERATIONS = 40
 
@@ -79,7 +102,8 @@ def evaluate(k, theta2_nom_deg, stride_mm):
     out = OrderedDict()
     out["theta2_nom_deg"] = theta2_nom_deg
     out["stride_mm"] = stride_mm
-    out.update(row)
+    for key in RECORD_OUTPUT_COLUMNS:
+        out[key] = row[key]
     out["theta_span_stance_deg (diagnostic, not an output)"] = trace["theta_span_stance_deg"]
     out["body_speed_mm_s (derived convenience, not an output)"] = trace["body_speed_mm_s"]
     out["span_predicate_clearance_ge_bob"] = trace["span_predicate_holds"]

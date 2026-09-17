@@ -101,51 +101,103 @@ def derive(k):
     )
 
 
-# The sweep outputs. D415 clause 1 rules the set at FIFTEEN; FOURTEEN are named here.
-# MEMBERSHIP IS THE REGISTER'S, NOT THIS LIST'S (D415 clause 4): this list is an
-# implementation artefact, and outputs are reported BY NAME, never by position
-# (D415 clause 5). The order below carries no meaning and must not be quoted as a
-# numbering.
+# The sweep outputs, BY NAME. Outputs are reported by name and never by position
+# (D415 clause 5); the order below carries no meaning and is not a numbering.
 #
-# THE MISSING FIFTEENTH IS NOT GUESSED. Removing body_speed_mm_s (D415 clause 3) left
-# thirteen, and output 15 (D263) makes fourteen. The register names quantities this
-# list does not compute - D97's femur-to-coxa ratio (renamed by D102) and co-binding
-# clearance, with D99's expressions - and which of them, if any, is the fifteenth is
-# coordination's to rule. Reported in FINDING_21; nothing is added here until then.
+# MEMBERSHIP (D418, D425, D426 clause 8). The register names SEVEN outputs in terms;
+# every other row here is computed with its membership NOT HELD, and coordination rules
+# those rows when the pair is ruled. So this module does not describe itself as "the
+# fifteen outputs": it computes sixteen names, of which seven are register-identified.
+REGISTER_IDENTIFIED = (
+    "femur_travel_swing_deg",       # D97 eleven; D99
+    "femur_coxa_ratio_swing_avg",   # D97 twelve; D99; named by D102, D129
+    "cobinding_clearance_mm",       # D97 thirteen; D148; D104 naming (D426 clause 7)
+    "theta_span_deg",               # D100 fourteen
+    "tau_femur_peak_kgcm",          # D208 status line, "sweep output 11"
+    "foot_dz_per_quantum_mm",       # D263 output 15
+    "bob_mm",                       # D86's tenth (D425 clause 1)
+)
+MEMBERSHIP_NOT_HELD = (
+    "r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
+    "theta_midswing_deg", "coxa_sweep_deg", "a_eff_extreme_mm",
+    "swing_duration_ms", "cycle_duration_ms",
+)
 OUTPUT_NAMES = [
     "r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
     "theta_midswing_deg", "theta_span_deg", "femur_travel_swing_deg",
-    "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm",
+    "coxa_sweep_deg", "femur_coxa_ratio_swing_avg", "cobinding_clearance_mm",
+    "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm",
     "swing_duration_ms", "cycle_duration_ms", "foot_dz_per_quantum_mm",
 ]
 
-# One output, evaluated at two inputs, so the set stays at fifteen while the row
-# carries sixteen columns (COREDROP_21 §1.1). Both inputs are read BY NAME at run
-# time; neither value is written into this file.
+# Output 15 is one output evaluated at two inputs (COREDROP_21 §1.1). Co-binding
+# clearance is one output reported at one definition and NAMED at a second (D104,
+# D426 clause 7): D104 "reports the more conservative and names the other with its
+# definition". Both quantum inputs are read BY NAME at run time.
 QUANTUM_INPUTS = ("command_step_deg", "joint_accuracy_deg")
-OUTPUT_COLUMNS = OUTPUT_NAMES[:-1] + [
-    "foot_dz_per_quantum_mm@" + q for q in QUANTUM_INPUTS]
+COBINDING_REPORTED = "cobinding_clearance_mm"
+COBINDING_NAMED = "cobinding_clearance_mm@span_named_d104"
+NO_ROOT = None      # emitted as "no root", never a number (D425 clause 5)
 
-# Rows 5, 12 and 13: the decision each cites is the source of the definition, not a
-# separate act of adoption (D415 clause 4). Presented with this mark.
-DEFINED_BY_ADOPTED_WITH_THE_SET = ("theta_midswing_deg", "swing_duration_ms",
-                                   "cycle_duration_ms")
+OUTPUT_COLUMNS = []
+for _n in OUTPUT_NAMES:
+    if _n == "foot_dz_per_quantum_mm":
+        OUTPUT_COLUMNS += ["foot_dz_per_quantum_mm@" + q for q in QUANTUM_INPUTS]
+    elif _n == "cobinding_clearance_mm":
+        OUTPUT_COLUMNS += [COBINDING_REPORTED, COBINDING_NAMED]
+    else:
+        OUTPUT_COLUMNS.append(_n)
+del _n
 
 OUTPUT_UNITS = {
     "r_nom_mm": "mm", "body_height_mm": "mm", "theta_nom_deg": "deg",
     "theta_extreme_deg": "deg", "theta_midswing_deg": "deg", "theta_span_deg": "deg",
-    "femur_travel_swing_deg": "deg", "coxa_sweep_deg": "deg", "bob_mm": "mm",
-    "a_eff_extreme_mm": "mm", "tau_femur_peak_kgcm": "kg*cm",
+    "femur_travel_swing_deg": "deg", "coxa_sweep_deg": "deg",
+    "femur_coxa_ratio_swing_avg": "ratio", "cobinding_clearance_mm": "mm",
+    "bob_mm": "mm", "a_eff_extreme_mm": "mm", "tau_femur_peak_kgcm": "kg*cm",
     "swing_duration_ms": "ms", "cycle_duration_ms": "ms",
     "foot_dz_per_quantum_mm": "mm per quantum",
 }
 
-# What each output's figure is computed as, written out so a figure is never
-# quoted against a different sentence (D415 clause 6).
-OUTPUT_EXPRESSIONS = {
-    "theta_span_deg": "theta_nom_deg - theta_midswing_deg  (D100; COREDROP_21 §2)",
-    "foot_dz_per_quantum_mm": "a_eff_nom_mm * q_deg * pi / 180, LINEARISED  (D263; COREDROP_21 §1)",
+# The model every swing-derived figure rests on (D426 clauses 1-2). Neither swing
+# progress model is adopted, so the label travels with the column.
+SWING_MODEL_LABEL = "level-body, body-frame progress"
+
+# D101 / D148: every rate, ratio, distance and span output emits its definition and
+# phase window. Written for all sixteen, so nothing has to be inferred from the code.
+OUTPUT_META = {
+    "r_nom_mm": ("L1 + R*cos(Theta0): implied reach at the nominal stance (D70)", "mid-stance", None),
+    "body_height_mm": ("R*sin(Theta0) (D70)", "mid-stance", None),
+    "theta_nom_deg": ("Theta0 = theta2_nom_deg + psi_deg (D70)", "mid-stance", None),
+    "theta_extreme_deg": ("acos((sqrt(r_nom^2 + s^2) - L1) / R): stride extreme on D58's straight line", "stance extreme", None),
+    "theta_midswing_deg": ("asin((body_height - swing_clearance) / R) (D99)", "mid-swing", SWING_MODEL_LABEL),
+    "theta_span_deg": ("theta_nom_deg - theta_midswing_deg (D100; COREDROP_21 §2)", "whole cycle, while clearance >= bob", SWING_MODEL_LABEL),
+    "femur_travel_swing_deg": ("2 * (theta_extreme_deg - theta_midswing_deg) (D99)", "one swing phase", SWING_MODEL_LABEL),
+    "coxa_sweep_deg": ("2 * atan(s / r_nom): coxa travel over one swing (D58, D99)", "one swing phase", SWING_MODEL_LABEL),
+    "femur_coxa_ratio_swing_avg": ("coxa_sweep_deg / femur_travel_swing_deg: AVERAGE-RATE ratio over the swing (D99, D102, D129). Above 1 the coxa sets the swing duration; below 1 the femur does and rows swing_duration_ms and cycle_duration_ms understate (D425 clause 6)", "one swing phase", SWING_MODEL_LABEL),
+    "cobinding_clearance_mm": ("REPORTED (D97, D148, D418 clause 2): the swing clearance at which femur_travel_swing_deg = coxa_sweep_deg, c = body_height - R*sin(Theta_extreme - coxa_sweep/2), searched over every clearance for which theta_midswing is defined, |sin| <= 1; 'no root' otherwise (D425 clause 5). NAMED (D104, D426 clause 7): the clearance at which theta_span_deg = coxa_sweep_deg, c = body_height - R*sin(Theta0 - coxa_sweep), same domain rule", "one swing phase", SWING_MODEL_LABEL),
+    "bob_mm": ("body_height - R*sin(Theta_extreme): geometric bob; the quantisation term is output 15 (D86, D425 clause 2)", "stance, nominal to extreme", None),
+    "a_eff_extreme_mm": ("R*cos(Theta_extreme)", "stance extreme", None),
+    "tau_femur_peak_kgcm": ("(mass_kg / tripod_support_legs) * a_eff_extreme_mm / 10 (D208)", "stance extreme", None),
+    "swing_duration_ms": ("1000 * coxa_sweep_deg * swing_peak_factor / dtheta_peak_deg_s: set from the coxa", "one swing phase", SWING_MODEL_LABEL),
+    "cycle_duration_ms": ("swing_duration_ms / (1 - duty_factor)", "whole cycle", SWING_MODEL_LABEL),
+    "foot_dz_per_quantum_mm": ("a_eff_nom_mm * q_deg * pi / 180, LINEARISED, at q = command_step_deg and at q = joint_accuracy_deg (D263; COREDROP_21 §1)", "nominal stance", None),
 }
+
+# Kept for callers written against 16 September's module: the expression text.
+OUTPUT_EXPRESSIONS = {n: m[0] for n, m in OUTPUT_META.items()}
+
+
+def _cobinding_root(height_mm, rigid_len_mm, angle_deg):
+    """c = height - R*sin(angle), provided the angle is one theta_midswing can take.
+
+    theta_midswing = asin((height - c)/R) is defined for every c with |height - c| <= R,
+    and asin's range is [-90, +90] degrees. A required mid-swing angle outside that
+    range has no clearance behind it: 'no root', never a clamped or extrapolated number.
+    """
+    if not -90.0 <= angle_deg <= 90.0:
+        return NO_ROOT
+    return height_mm - rigid_len_mm * math.sin(math.radians(angle_deg))
 
 
 class UnreachableStride(Exception):
@@ -155,8 +207,11 @@ class UnreachableStride(Exception):
 def sweep_point(k, stride_mm, duty_factor):
     """One row of the sweep: the named outputs at one (stride, duty).
 
-    The row holds OUTPUT_COLUMNS in that order - fifteen floats for fourteen names,
-    because output 15 is one output evaluated at two inputs.
+    The row holds OUTPUT_COLUMNS in that order: output 15 is one output at two
+    inputs, and co-binding clearance is reported at one definition and named at a
+    second (D104). Every column is a float, with two exceptions that hold None: the
+    co-binding columns where no clearance satisfies their equality ('no root'), and
+    the ratio where the swing has no lift.
 
     Returns (row, derived, trace) where trace carries the intermediate angles the
     span guard must recompute from - never from the stored outputs.
@@ -198,6 +253,11 @@ def sweep_point(k, stride_mm, duty_factor):
     swing_ms = 1000.0 * coxa_sweep * peak_factor / dtheta_peak
     cycle_ms = swing_ms / (1.0 - duty_factor)
     bob = d.body_height_mm - R * math.sin(math.radians(theta_extreme))
+    femur_travel = 2.0 * (theta_extreme - theta_midswing)
+    # A ratio over zero or negative femur travel is not a figure: below bob the swing
+    # has no lift (D126 guard 1). The row stays computable - the D126 guard tests walk
+    # clearance through that edge on purpose - and the ratio column says so with None.
+    ratio = coxa_sweep / femur_travel if femur_travel > 0.0 else None
 
     row = OrderedDict([
         ("r_nom_mm", d.r_nom_mm),
@@ -211,8 +271,16 @@ def sweep_point(k, stride_mm, duty_factor):
         #    stance-only span (nominal to extreme) is a different quantity and is
         #    kept in the trace as a diagnostic, never as this output.
         ("theta_span_deg", d.theta_nom_deg - theta_midswing),
-        ("femur_travel_swing_deg", 2.0 * (theta_extreme - theta_midswing)),
+        ("femur_travel_swing_deg", femur_travel),
         ("coxa_sweep_deg", coxa_sweep),
+        # D97 twelve, named by D102: an AVERAGE-RATE ratio over one swing, coxa over femur.
+        ("femur_coxa_ratio_swing_avg", ratio),
+        # D97 thirteen. Reported: femur travel equals coxa travel, i.e.
+        # 2(Theta_ext - Theta_mid) = coxa  =>  Theta_mid = Theta_ext - coxa/2.
+        (COBINDING_REPORTED, _cobinding_root(d.body_height_mm, R, theta_extreme - coxa_sweep / 2.0)),
+        # D104's second definition, NAMED beside it: span equals coxa travel, i.e.
+        # Theta0 - Theta_mid = coxa  =>  Theta_mid = Theta0 - coxa.
+        (COBINDING_NAMED, _cobinding_root(d.body_height_mm, R, d.theta_nom_deg - coxa_sweep)),
         ("bob_mm", bob),
         ("a_eff_extreme_mm", a_eff_extreme),
         # D208: the TRIPOD SHARE, not whole-robot mass. Single-leg support needs five
@@ -245,6 +313,9 @@ def sweep_point(k, stride_mm, duty_factor):
         ("body_speed_mm_s", 1000.0 * stride_mm / cycle_ms),
         # COREDROP_21 §2.3: output 6 is the cycle peak-to-peak only while this holds.
         ("span_predicate_holds", clearance >= bob),
+        # D425 clause 6: rows swing_duration_ms and cycle_duration_ms are set from the
+        # coxa. Where the ratio is below 1 the femur travels further and they understate.
+        ("swing_duration_understated", None if ratio is None else ratio < 1.0),
     ])
 
     # The trace exists so that the span guard can recompute output 6 from the

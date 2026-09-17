@@ -32,15 +32,20 @@ GUARDED = {
     "mass_kg": (2.15, 2.60, [
         n for n in ("r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
                     "theta_midswing_deg", "theta_span_deg", "femur_travel_swing_deg",
-                    "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm", "swing_duration_ms",
+                    "coxa_sweep_deg", "femur_coxa_ratio_swing_avg", "cobinding_clearance_mm",
+                    "cobinding_clearance_mm@span_named_d104",
+                    "bob_mm", "a_eff_extreme_mm", "swing_duration_ms",
                     "cycle_duration_ms", "foot_dz_per_quantum_mm@command_step_deg",
                     "foot_dz_per_quantum_mm@joint_accuracy_deg")]),
 
-    # clearance enters the mid-swing angle, and through it the swing travel AND
-    # theta_span_deg - which under D100 is nominal minus MID-SWING. Nothing else sees it.
+    # clearance enters the mid-swing angle, and through it the swing travel, the
+    # femur-to-coxa ratio AND theta_span_deg - which under D100 is nominal minus
+    # MID-SWING. Both co-binding clearances are SOLVED for the clearance, so the
+    # clearance in the table does not reach them.
     "swing_clearance_mm": (15.0, 18.0, [
         n for n in ("r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
-                    "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm",
+                    "coxa_sweep_deg", "cobinding_clearance_mm",
+                    "cobinding_clearance_mm@span_named_d104", "bob_mm", "a_eff_extreme_mm",
                     "tau_femur_peak_kgcm", "swing_duration_ms", "cycle_duration_ms",
                     "foot_dz_per_quantum_mm@command_step_deg",
                     "foot_dz_per_quantum_mm@joint_accuracy_deg")]),
@@ -49,7 +54,9 @@ GUARDED = {
     "dtheta_peak_deg_s": (375.0, 300.0, [
         n for n in ("r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
                     "theta_midswing_deg", "theta_span_deg", "femur_travel_swing_deg",
-                    "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm",
+                    "coxa_sweep_deg", "femur_coxa_ratio_swing_avg", "cobinding_clearance_mm",
+                    "cobinding_clearance_mm@span_named_d104",
+                    "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm",
                     "foot_dz_per_quantum_mm@command_step_deg",
                     "foot_dz_per_quantum_mm@joint_accuracy_deg")]),
 
@@ -72,13 +79,17 @@ GUARDED = {
     "command_step_deg": (0.1350, 0.2400, [
         n for n in ("r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
                     "theta_midswing_deg", "theta_span_deg", "femur_travel_swing_deg",
-                    "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm",
+                    "coxa_sweep_deg", "femur_coxa_ratio_swing_avg", "cobinding_clearance_mm",
+                    "cobinding_clearance_mm@span_named_d104",
+                    "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm",
                     "swing_duration_ms", "cycle_duration_ms",
                     "foot_dz_per_quantum_mm@joint_accuracy_deg")]),
     "joint_accuracy_deg": (1.0000, 0.5000, [
         n for n in ("r_nom_mm", "body_height_mm", "theta_nom_deg", "theta_extreme_deg",
                     "theta_midswing_deg", "theta_span_deg", "femur_travel_swing_deg",
-                    "coxa_sweep_deg", "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm",
+                    "coxa_sweep_deg", "femur_coxa_ratio_swing_avg", "cobinding_clearance_mm",
+                    "cobinding_clearance_mm@span_named_d104",
+                    "bob_mm", "a_eff_extreme_mm", "tau_femur_peak_kgcm",
                     "swing_duration_ms", "cycle_duration_ms",
                     "foot_dz_per_quantum_mm@command_step_deg")]),
 }

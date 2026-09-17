@@ -104,19 +104,35 @@ def test_unreachable_stride_raises_rather_than_returning_nonsense():
 
 
 def test_real_table_produces_every_named_output():
-    """D415 clause 1 rules FIFTEEN. This module names FOURTEEN, and says so rather than
-    padding the list: body_speed_mm_s came out under clause 3, output 15 went in under
-    D263, and the fifteenth member is not identified in the register (FINDING_21).
-    When coordination names it, this test is the one that has to change first.
-
-    Output 15 is one output at two inputs, so fourteen names give fifteen columns."""
+    """Sixteen names, eighteen columns. Seven names are register-identified (D418,
+    D425) and nine are computed with membership NOT HELD; the two groups partition the
+    list exactly. Output 15 is one output at two inputs, and co-binding clearance is
+    reported at one definition and named at a second (D104), so two names carry two
+    columns each. This module is never described as "the fifteen outputs"."""
     k = C.load()
     row, _, _ = D.sweep_point(k, k.value("stride_mm"), k.value("duty_factor"))
-    assert len(D.OUTPUT_NAMES) == 14
-    assert "foot_dz_per_quantum_mm" in D.OUTPUT_NAMES
+    assert len(D.OUTPUT_NAMES) == 16
+    assert sorted(D.REGISTER_IDENTIFIED + D.MEMBERSHIP_NOT_HELD) == sorted(D.OUTPUT_NAMES)
+    assert not set(D.REGISTER_IDENTIFIED) & set(D.MEMBERSHIP_NOT_HELD)
+    assert len(D.REGISTER_IDENTIFIED) == 7
     assert list(row) == D.OUTPUT_COLUMNS
-    assert len(row) == 15
+    assert len(row) == 18
     assert all(isinstance(v, float) for v in row.values())
+
+
+def test_every_output_carries_definition_and_phase_window():
+    """D101, D148: every rate, ratio, distance and span output emits both."""
+    for name in D.OUTPUT_NAMES:
+        definition, window, _model = D.OUTPUT_META[name]
+        assert definition and window
+
+
+def test_swing_columns_carry_the_progress_model_label():
+    """D426 clauses 1-2: neither swing progress model is adopted."""
+    for name in ("femur_travel_swing_deg", "coxa_sweep_deg", "femur_coxa_ratio_swing_avg",
+                 "cobinding_clearance_mm", "theta_midswing_deg"):
+        assert D.OUTPUT_META[name][2] == "level-body, body-frame progress"
+    assert D.OUTPUT_META["bob_mm"][2] is None
 
 
 def test_body_speed_is_not_a_sweep_output():
