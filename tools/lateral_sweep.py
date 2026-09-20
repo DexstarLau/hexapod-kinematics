@@ -30,10 +30,18 @@ For a posture, each bar gives the largest half-stride s it admits:
                              <= body_bob_budget_mm
              bob = h - R*sin(Theta_ext), so sin(Theta_ext) >= (h - budget + dz)/R,
              which bounds the reach and hence s, in closed form.
-  middle     every stance-phase coxa angle of R2 and L2 inside its projected window
-  coxa       (D420 clause 3, D424 clause 7). The angle is computed from the foothold
-             through sim/stance_pose.joint_angles, not assumed; s is found by
-             bisection to 1e-10 mm on a quantity that is monotonic in s.
+  coxa       D427 clause 3's Hardware figures, as a PROXY for D29's check and labelled
+  proxy      so: middle 52.1700 deg, corner 58.2500 deg from the mount, splayed-pose
+             LOWER BOUNDS, provisional, not written into joint_envelopes_deg. On D58's
+             footholds the corner angle is 45 + atan(s / r_nom), so the bound is a
+             closed form in s. STANCE ONLY - it omits P8's swing overshoot, 0.09-2.20
+             deg (D430 clause 4).
+  D29        the real bar: minimum distance between adjacent leg LINKS across the whole
+             cycle, hand-over included, at a configurable cross-section (sim/interleg.py).
+             The cross-section is Hardware's and is UNSUPPLIED, so it is reported
+             parameterised and is not applied as a bar.
+  D248       withdrawn as a coxa bar by D427 clause 2. Kept reachable as bars="d248",
+             which reproduces FINDING_22's table.
   femur      theta2 over the D99 points - nominal, stride extreme, mid-swing - inside
              the projected window on every leg. It does not depend on stride at all
              here (the largest theta2 is the nominal, the smallest the mid-swing), so it
@@ -76,9 +84,30 @@ from collections import OrderedDict
 from bindings.hexconfig import LEGS, hex_coxa, hex_femur, project_joint_limits
 from sim import constants as C
 from sim import derive as D
+from sim import interleg as I
 from sim import stance_pose as S
 
 STATUS = "interim - swing and corner coxa open"
+
+# D427 clause 3, carried in PROJECT_25 §3 item 2. NOT written into joint_envelopes_deg,
+# which is D248's file: these are a separate bar with their own name and source.
+HW_BAR_LABEL = ("Spider Hardware, STEP model, splayed pose, surface proximity, "
+                "LOWER BOUND, provisional (D427 clause 3)")
+HW_MIDDLE_DEG = 52.1700          # middle coxa, rear-going, worst leg of the pair
+HW_CORNER_DEG = 58.2500          # corner coxa toward its neighbour, worst leg
+PROXY_LABEL = ("coxa-angle PROXY for D29's link-distance check, STANCE ONLY; it omits "
+               "the swing overshoot, 0.09-2.20 deg at the pairs Spider AI measured "
+               "(D430 clause 4, HANDOFF_87)")
+D145_LABEL = ("rows swing_duration_ms and cycle_duration_ms assume D145's half-sine; "
+              "P8's peak/mean is 1.0491-1.4148 against pi/2, flagged not adopted "
+              "(D430 clause 5, HANDOFF_87)")
+# D29's second check - the physical link cross-section - is Hardware's and is UNSUPPLIED,
+# so the link-distance bar is run parameterised at these widths and at none of them ruled.
+CROSS_SECTIONS_MM = (10.0, 20.0, 30.0, 40.0, 50.0)
+# D430 clause 4's overshoot range, priced in millimetres of link clearance. The
+# MAGNITUDE is D430's; the shape is sim/interleg.py's parameterisation, labelled there.
+OVERSHOOT_DEG = (0.09, 2.20)
+D29_FRAMES = 121
 SAMPLE_POSTURES_DEG = (75.0, 77.1765, 80.0, 85.0, 89.0)
 REPORTED_CASE = (80.0, None)            # (posture, stride); None -> the table's stride_mm
 CLOCK_DEG = 43.2                        # D31: three teeth on a 25T spline
@@ -161,7 +190,23 @@ def half_stride_vertical(k):
     return math.sqrt(max(0.0, reach ** 2 - d.r_nom_mm ** 2))
 
 
-def half_stride_middle_coxa(k):
+def half_stride_coxa_proxy(k):
+    """Hardware's coxa figures as the proxy bar (D427 clauses 3-4).
+
+    On D58's footholds the corner leg's angle from its mount is 45 + atan(s / r_nom) and
+    the middle leg's is atan(s / r_nom), so each bound is a closed form in s. The corner
+    bound is the tighter one at every posture reachable here; both are computed and the
+    smaller is returned.
+    """
+    d = D.derive(k)
+    corner = d.r_nom_mm * math.tan(math.radians(HW_CORNER_DEG - 45.0))
+    middle = d.r_nom_mm * math.tan(math.radians(HW_MIDDLE_DEG))
+    return min(corner, middle)
+
+
+def half_stride_middle_coxa_d248(k):
+    """THE RECORD: D248's +/-13.5000 envelope, the bar FINDING_22 was computed on.
+    D427 clause 2 withdrew it as a bar; it is kept so that table still reproduces."""
     d = D.derive(k)
     mins, maxs = project_joint_limits(k.value("joint_envelopes_deg"))
     limits = []
@@ -197,11 +242,16 @@ def femur_check(k, stride_mm):
     return min(angles), max(angles), (lo, hi), lo <= min(angles) and max(angles) <= hi
 
 
-def stride_limits(k):
-    """Half-stride limits by bar, the longest stride, and the bar that binds."""
+def stride_limits(k, bars="hardware"):
+    """Half-stride limits by bar, the longest stride, and the bar that binds.
+
+    bars="hardware"  torque, vertical and Hardware's coxa proxy (D427, D428 clause 3)
+    bars="d248"      torque, vertical and D248's withdrawn envelope - FINDING_22's table
+    """
+    coxa = half_stride_coxa_proxy(k) if bars == "hardware" else half_stride_middle_coxa_d248(k)
     lim = OrderedDict([("torque", half_stride_torque(k)),
                        ("vertical", half_stride_vertical(k)),
-                       ("middle coxa", half_stride_middle_coxa(k))])
+                       ("coxa proxy" if bars == "hardware" else "middle coxa", coxa)])
     live = {n: v for n, v in lim.items() if v is not None}
     if len(live) < len(lim):
         return lim, None, [n for n, v in lim.items() if v is None]
@@ -219,14 +269,16 @@ def stride_zero_posture_deg(k):
     return math.degrees(math.acos(a_max / d.rigid_len_mm)) - d.psi_deg
 
 
-def best_posture_deg(k, lo_deg, hi_deg):
-    """Bisection for the posture where min(torque, vertical) meets the middle-coxa limit."""
+def best_posture_deg(k, lo_deg, hi_deg, bars="hardware"):
+    """Bisection for the posture where min(torque, vertical) meets the coxa limit."""
     def gap(t):
         kk = at_posture(k, t)
         growing = [half_stride_torque(kk), half_stride_vertical(kk)]
         if any(v is None for v in growing):
             return -1.0
-        return min(growing) - half_stride_middle_coxa(kk)
+        coxa = (half_stride_coxa_proxy(kk) if bars == "hardware"
+                else half_stride_middle_coxa_d248(kk))
+        return min(growing) - coxa
 
     a, b = lo_deg + 1e-9, hi_deg
     if gap(a) > 0 or gap(b) < 0:
@@ -241,10 +293,18 @@ def best_posture_deg(k, lo_deg, hi_deg):
 
 # --------------------------------------------------------------- one row
 
-def evaluate(k, theta2_nom_deg, stride_mm, label):
+def coxa_angles_from_mount_deg(k, half_stride_mm):
+    """(middle, corner) stance angle from the mount on D58's footholds, in degrees."""
+    d = D.derive(k)
+    a = math.degrees(math.atan(half_stride_mm / d.r_nom_mm))
+    return a, 45.0 + a
+
+
+def evaluate(k, theta2_nom_deg, stride_mm, label, bars="hardware"):
+    """One row: the bars, D29's check, and the outputs by name."""
     kk = at_posture(k, theta2_nom_deg)
     d = D.derive(kk)
-    limits, longest, binding = stride_limits(kk)
+    limits, longest, binding = stride_limits(kk, bars)
     row, _, trace = D.sweep_point(kk, stride_mm, kk.value("duty_factor"))
     s = stride_mm / 2.0
     mins, maxs = project_joint_limits(kk.value("joint_envelopes_deg"))
@@ -259,10 +319,9 @@ def evaluate(k, theta2_nom_deg, stride_mm, label):
     for name, v in limits.items():
         out["half_stride_limit_mm@" + name] = v
 
-    mass, legs = kk.value("mass_kg"), kk.value("tripod_support_legs")
+    mass = kk.value("mass_kg")
     margin, servo = kk.value("margin_factor"), kk.value("tau_servo_kgcm")
     out["tau_x_margin_kgcm (D209, D420 cl.1)"] = row["tau_femur_peak_kgcm"] * margin
-    out["tau_servo_kgcm"] = servo
     out["torque_bar_passes"] = row["tau_femur_peak_kgcm"] * margin <= servo + 1e-9
     out["tau_x_3.0000_kgcm (sensitivity: margin 2.5000 at %.4f kg)" % (mass * 3.0 / margin)] = \
         row["tau_femur_peak_kgcm"] * 3.0
@@ -270,19 +329,24 @@ def evaluate(k, theta2_nom_deg, stride_mm, label):
     out["vertical_total_mm (D425 cl.3)"] = total
     out["vertical_bar_passes"] = total <= kk.value("body_bob_budget_mm") + 1e-9
 
-    f_lo, f_hi, f_win, f_ok = femur_check(kk, stride_mm)
+    f_lo, f_hi, _win, f_ok = femur_check(kk, stride_mm)
     out["femur_theta2_min_deg"], out["femur_theta2_max_deg"] = f_lo, f_hi
-    out["femur_window_passes"] = f_ok
+    out["femur_window_passes (D248, still in force)"] = f_ok
 
-    for leg in MIDDLE_LEGS:
-        lo, hi = coxa_range_deg(kk, d, leg, s)
-        i = LEGS.index(leg)
-        out["coxa_%s_range_deg" % leg] = "%.4f .. %.4f" % (lo, hi)
-        out["coxa_%s_excess_deg" % leg] = window_excess_deg(lo, hi, (mins[hex_coxa(i)], maxs[hex_coxa(i)]))
-    out["middle_coxa_bar_passes"] = all(out["coxa_%s_excess_deg" % l] <= 1e-9 for l in MIDDLE_LEGS)
+    middle, corner = coxa_angles_from_mount_deg(kk, s)
+    out["coxa_bar_source"] = HW_BAR_LABEL
+    out["coxa_bar_is_a_proxy"] = PROXY_LABEL
+    out["middle_coxa_from_mount_deg"] = middle
+    out["middle_coxa_bound_deg"] = HW_MIDDLE_DEG
+    out["corner_coxa_from_mount_deg"] = corner
+    out["corner_coxa_bound_deg"] = HW_CORNER_DEG
+    out["corner_coxa_margin_deg (stance only)"] = HW_CORNER_DEG - corner
+    out["coxa_proxy_bar_passes"] = corner <= HW_CORNER_DEG + 1e-9 and middle <= HW_MIDDLE_DEG + 1e-9
 
-    for column, clocked in (("corner_coxa_excess_deg@beta_neutral_0 (reported, not a bar)", False),
-                            ("corner_coxa_excess_deg@clocked_43.2 (reported, not a bar)", True)):
+    # D248's envelope, withdrawn as a bar by D427 clause 2, kept as the record that
+    # FINDING_22 was computed against.
+    for column, clocked in (("record: corner excess vs D248 @ beta_neutral 0", False),
+                            ("record: corner excess vs D248 @ clocked 43.2", True)):
         worst = 0.0
         for leg in CORNER_LEGS:
             i = LEGS.index(leg)
@@ -291,28 +355,61 @@ def evaluate(k, theta2_nom_deg, stride_mm, label):
             worst = max(worst, window_excess_deg(lo, hi, (mins[hex_coxa(i)], maxs[hex_coxa(i)])))
         out[column] = worst
 
+    # D29's own check, over the WHOLE cycle including the hand-over (D430 clause 4).
+    dist, where, phase = I.min_link_distance(kk, stride_mm, D29_FRAMES)
+    out["d29_min_link_distance_mm"] = dist
+    out["d29_closest_links"] = where
+    out["d29_phase"] = phase
+    out["d29_minimum_at_handover"] = min(abs(phase - p) for p in (0.0, 0.5, 1.0)) < 1e-3
+    out["d29_swing_model"] = I.SWING_MODEL
+    out["d29_cross_section_mm"] = "UNSUPPLIED (Spider Hardware, D29 second check)"
+    for w in CROSS_SECTIONS_MM:
+        out["d29_clearance_mm @ cross-section %.4f" % w] = dist - w
+    for o in OVERSHOOT_DEG:
+        out["d29_min_link_distance_mm @ swing overshoot %.4f deg (D430 cl.4 magnitude, "
+            "shape parameterised)" % o] = I.min_link_distance(
+                kk, stride_mm, D29_FRAMES, overshoot_deg=o)[0]
+
     for col in D.OUTPUT_COLUMNS:
         out[col] = row[col]
     out["swing_columns_model"] = D.SWING_MODEL_LABEL
+    out["rows_12_13_profile"] = D145_LABEL
     out["swing_duration_understated (ratio < 1, D425 cl.6)"] = trace["swing_duration_understated"]
     out["theta_span_stance_deg (diagnostic, not an output)"] = trace["theta_span_stance_deg"]
     out["body_speed_mm_s (derived convenience, not an output)"] = trace["body_speed_mm_s"]
     return out
 
 
-def run(k):
+def stride_curve(k, lo_deg, hi_deg, step_deg=0.5, bars="hardware"):
+    """The stride ceiling as a curve, not a cap (D428 clause 2, D64): posture, longest
+    stride, the bar that binds, and D29's distance there. Uncapped by 60.0000 mm."""
+    rows = []
+    p = lo_deg
+    while p <= hi_deg + 1e-9:
+        kk = at_posture(k, p)
+        _lim, longest, binding = stride_limits(kk, bars)
+        if longest is not None:
+            dist, where, phase = I.min_link_distance(kk, longest, D29_FRAMES)
+            rows.append(OrderedDict([
+                ("theta2_nom_deg", p), ("longest_stride_mm", longest),
+                ("binding_bar", " + ".join(binding)),
+                ("d29_min_link_distance_mm", dist), ("d29_closest_links", where),
+                ("d29_phase", phase), ("status", STATUS)]))
+        p += step_deg
+    return rows
+
+
+def run(k, bars="hardware"):
     floor = stride_zero_posture_deg(k)
-    hi = min(project_joint_limits(k.value("joint_envelopes_deg"))[1][hex_femur(i)]
-             for i in range(len(LEGS)))
-    best = best_posture_deg(k, floor, min(hi, 89.9999))
+    best = best_posture_deg(k, floor, 89.9999, bars)
     rows = []
     postures = [("sample", p) for p in SAMPLE_POSTURES_DEG] + [("solved best posture", best)]
     for label, p in sorted(postures, key=lambda lp: lp[1]):
-        _, longest, _ = stride_limits(at_posture(k, p))
-        rows.append(evaluate(k, p, longest, "%s, longest stride" % label))
+        longest = stride_limits(at_posture(k, p), bars)[1]
+        rows.append(evaluate(k, p, longest, "%s, longest stride" % label, bars))
     posture, stride = REPORTED_CASE
     rows.append(evaluate(k, posture, stride if stride is not None else k.value("stride_mm"),
-                         "reported case, shipped stride"))
+                         "reported case, shipped stride", bars))
     return floor, best, rows
 
 
@@ -337,6 +434,7 @@ def write_csv(rows, path):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Search on D58's lateral footholds.")
     ap.add_argument("--csv")
+    ap.add_argument("--curve-csv", help="the stride ceiling as a curve over posture")
     args = ap.parse_args(argv)
     k = C.load()
     floor, best, rows = run(k)
@@ -350,6 +448,8 @@ def main(argv=None):
         print("| `%s` | " % key + " | ".join(fmt(r[key]) for r in rows) + " |")
     if args.csv:
         write_csv(rows, args.csv)
+    if args.curve_csv:
+        write_csv(stride_curve(k, math.ceil(floor * 2) / 2.0, 89.0), args.curve_csv)
     return 0
 
 

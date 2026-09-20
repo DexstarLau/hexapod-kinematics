@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml/badge.svg)](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue)
-![Tests](https://img.shields.io/badge/tests-295%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-318%20passing-brightgreen)
 
 Forward and inverse kinematics for a six-legged walking robot, with a Python
 reference bound to the same C source and a test suite.
@@ -32,7 +32,8 @@ What is here:
 | Repository, build, CI | working |
 | Derivation and the sweep outputs | working, checked against externally supplied figures. **Sixteen names, reported by name. Seven are register-identified (D418, D425)**: `femur_travel_swing_deg`, `femur_coxa_ratio_swing_avg`, `cobinding_clearance_mm` (with D104's span-based clearance named beside it), `theta_span_deg`, `tau_femur_peak_kgcm`, `foot_dz_per_quantum_mm`, `bob_mm`. **The other nine are computed with membership NOT HELD** until coordination rules them. Every output carries its definition and phase window; swing columns are labelled *level-body, body-frame progress* (D426) |
 | Stance pose, P1′ (D414) | **record** — `sim/stance_pose.py`. The kit's unclocked, mount-direction footholds: pitched body and a pose step at every tripod hand-over (D419). Kept as the record of that configuration; **not the search** (D424 clause 3) |
-| D197 re-sweep | **the search runs on D58's lateral footholds** — `tools/lateral_sweep.py`, `reports/d58_lateral_sweep.csv`. Per posture the longest stride under torque (D209 as D420 rules it), vertical (D425) and the middle-coxa window is solved, the best posture is solved as a crossing, and corner-coxa excess is reported, not applied. **Every row interim; no pair is chosen here.** The mount-direction record stays in `tools/resweep.py` and `reports/d197_resweep.csv` |
+| D197 re-sweep | **the search runs on D58's lateral footholds** — `tools/lateral_sweep.py`, `reports/d58_lateral_sweep.csv`, and the stride ceiling as a curve in `reports/d427_stride_curve.csv`. Bars: torque (D420 cl. 1), vertical (D425 cl. 3), the femur window (D248), and **Hardware's coxa figures as a labelled proxy** (D427 cl. 3) for **D29's link-distance check**. **Every row interim; no pair is chosen here.** D248's ±13.5° envelope is withdrawn as a bar (D427 cl. 2) and stays reachable as the record that reproduces `FINDING_22` |
+| D29 inter-leg clearance | working — `sim/interleg.py`. Minimum distance between adjacent same-side leg **links** across the whole cycle, hand-over included, at a configurable cross-section. **The cross-section is Hardware's and is UNSUPPLIED**, so it is reported parameterised, never applied as a bar. The swing side is the labelled level-body, body-frame progress model, not D430's `P8` |
 | Hard-coded-constant guard | **executing** — 10 constants, each with a reasoned output footprint |
 | Corner-leg yaw guard | **executing** — catches a radial leg model on four legs of six |
 | The three swing guards | **executing** across 9 (stride, duty) points |
@@ -43,13 +44,13 @@ What is here:
 | Vendor pose set, FK residuals | working — [report](reports/D275_vendor_pose_validation.md), 2,364 + 1,704 rows, both CSVs regenerate byte-identical |
 | Fold-boundary guard | **executing** — every boundary recomputed independently per `theta3` |
 | Status-table guard | **executing** — `IK_STATUS` and `CFG_ERR` compared against the C enums |
-| Gait engine | **runs; ruled non-conforming to D58 and D11 (D402). v1 remains the delivered engine, labelled non-conforming, until D426 clause 4's conditions are on the record (D419 clause 7)** — `core/gait_core.{h,c}`. On a 6 s straight walk at 83.7 mm/s the visualiser reads up to 50.4 mm of world-frame drift in one contact run on a corner leg, and 42.1024 mm under a contact rule admitting no lift-off frame at all, where D58 puts zero. Reproduced independently by the algorithm workstream. **A corrected stance path exists there and is held, not withheld: it drives stance drift to 0.0001 mm and breaks D208's tripod share, which is a geometry question now with coordination (D403).** Millimetre figures here are a stance derived from the quarantined `theta2_nom_deg` (D260) |
+| Gait engine | **runs; ruled non-conforming to D58 and D11 (D402). v1 remains the delivered engine, labelled non-conforming, until D426 clause 4's conditions are on the record (D419 clause 7)** — `core/gait_core.{h,c}`. On a 6 s straight walk at 83.7 mm/s the visualiser reads up to 50.4 mm of world-frame drift in one contact run on a corner leg, and 42.1024 mm under a contact rule admitting no lift-off frame at all, where D58 puts zero. Reproduced independently by the algorithm workstream. **A corrected stance path exists there and is held, not withheld: it drives stance drift to 0.0001 mm and breaks D208's tripod share, which is a geometry question now with coordination (D403).** Millimetre figures here are a stance derived from the quarantined `theta2_nom_deg` (D260) | **On-part timing, Spider Hardware via coordination (D427 cl. 7): `gait_step` worst 83.000 µs of a 20,000 µs frame, mean 64.810; `att_step` worst 11.000 µs of 10,000 µs, mean 7.547; ESP32-S3 at 240 MHz, ESP-IDF v6.1 `-O2`, MP1 `core/` at `944a6f19`, 161,951 calls, 0 non-zero returns. D6.2 is met on v1 with roughly 240× headroom; the measurement repeats when the corrected engine lands.**
 | Attitude filter | working — `core/att_core.{h,c}`, complementary, Euler kinematics. `att_config_t` ratified as filed (D388); **`att_step` returns `int` per D389** — 0 valid, non-zero not, `out_rpy` written either way. Every result on the record is from synthetic input: no IMU log in D78's form exists |
 | Visualiser | working — `sim/visualise.py`. Drives `gait_core` through its frozen API, rebuilds the feet in double, measures each stance foot's drift in the world frame and writes a self-contained HTML page. 16 tests, each shown to fail when what it guards is broken |
 | D275 vendor-file checks | **run on request** — `tools/check_d275_pins.py`. No longer tests: as tests they skipped on every machine without the vendor file |
 | `tests/test_c_agreement.py` | working — `hex_derive` and `ik_fk_leg` in `float` against `sim/derive.py` in double, 4,440 comparisons, worst 14.4% of the error budget |
 
-**295 passing and 0 skipped, on CI and on any machine.** Until 12 September six
+**318 passing and 0 skipped, on CI and on any machine.** Until 12 September six
 vendor-pose tests skipped wherever the manufacturer's action-group file was absent,
 which in practice was everywhere: the file is not redistributable
 (`docs/THIRD_PARTY.md`). **A skip is CI green over something that never ran**, so
@@ -136,7 +137,7 @@ python -m tools.check_d275_pins --actions "path/to/your/copy.ini"
 python -m tools.resweep --csv reports/d197_resweep.csv
 
 # the search on D58's lateral footholds (D424 clause 7); a test regenerates this CSV too
-python -m tools.lateral_sweep --csv reports/d58_lateral_sweep.csv
+python -m tools.lateral_sweep --csv reports/d58_lateral_sweep.csv --curve-csv reports/d427_stride_curve.csv
 
 # the visualiser. config/hexapod.json leaves two fields it needs unspecified, so each
 # must be supplied by name, and the page marks them as stand-ins. These two values
@@ -147,7 +148,7 @@ python -m sim.visualise --vx 83.7 --vy 0 --omega 0 --seconds 6 --supply swing_ep
 Tested on Python 3.14 with pytest 9. `pyproject.toml` pins the module search
 path so behaviour does not depend on the pytest version.
 
-**295 passing, 0 skipped.**
+**318 passing, 0 skipped.**
 
 ---
 
