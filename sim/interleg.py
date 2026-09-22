@@ -241,3 +241,81 @@ def longest_stride_for_width(k, cross_section_mm, lo_mm=1.0, hi_mm=200.0,
         mid = 0.5 * (lo + hi)
         lo, hi = (mid, hi) if clear(mid) > 0.0 else (lo, mid)
     return lo
+
+
+# ------------------------------------------------------------------ the overshoot budget
+
+CONTACT_AT_ZERO = "contact at zero overshoot"
+OVERSHOOT_QUANTITY = ("overshoot in sim/interleg.py's parameterisation: coxa carried beyond "
+                      "its stance extreme by o AT the contact instant, foot on the ground, "
+                      "decaying as cos(pi*u) to zero at mid-swing - NOT P8's excursion, which "
+                      "is zero at contact and peaks tau* into the swing with the foot lifted")
+
+
+def bracketed_root(f, a, b, tol=1e-10, max_iter=200):
+    """(x_pass, x_fail): a sign change of f, bracketed to within tol. f(x_pass) > 0 and
+    f(x_fail) <= 0 - the caller asks which side it wants, and gets a point on it.
+
+    The Illinois form of regula falsi: each step takes the secant through the two bracket
+    ends, and an end that is kept for another step has its value halved, so it cannot
+    pin the bracket while the other end creeps. It keeps a sign change at every step, so the root is SOLVED, never
+    sampled, exactly as a bisection is - it only gets there in roughly a tenth of the
+    evaluations. Checked by test against the bisection it replaces and against a root
+    known in closed form. Raises rather than returning a point it has not bracketed.
+    """
+    fa, fb = f(a), f(b)
+    if (fa > 0.0) == (fb > 0.0):
+        raise ValueError("no sign change between {!r} and {!r}".format(a, b))
+    for _ in range(max_iter):
+        if abs(b - a) <= tol:
+            break
+        c = b - fb * (b - a) / (fb - fa)
+        if not (min(a, b) < c < max(a, b)):     # a flat secant: fall back to the midpoint
+            c = 0.5 * (a + b)
+        fc = f(c)
+        if (fc > 0.0) != (fb > 0.0):            # the sign change is now between b and c
+            a, fa = b, fb
+        else:                                   # a survives another step: halve it (Illinois)
+            fa = fa / 2.0
+        b, fb = c, fc
+    else:
+        raise ValueError("no convergence to {!r} in {} steps".format(tol, max_iter))
+    return (a, b) if fa > 0.0 else (b, a)
+
+
+def overshoot_budget_deg(k, stride_mm, cross_section_mm, hi_deg=10.0, frames=121,
+                         tol_deg=1e-10, zero_tol_mm=1e-9):
+    """The swing overshoot at which D29's clearance reaches zero, at this stride and width.
+
+    THE QUANTITY is overshoot_deg exactly as swing_pose_of defines it (OVERSHOOT_QUANTITY).
+    It prices a coxa excursion placed AT the hand-over, which is where this model's closest
+    approach sits. It is not P8's excursion and the two are not compared by number: P8's
+    peak falls tau* after lift-off, when the standing neighbour has already moved on and
+    the swinging foot is in the air. Only a sweep of P8's own path decides P8.
+
+    AT A BOUNDARY. A stride solved to make the clearance zero leaves it at about +/-1e-14
+    mm, and that sign is floating-point noise: on 22 September Linux read it positive and
+    Windows negative, and the printed budget flipped between 0.0000 and a refusal. So a
+    clearance within zero_tol_mm (the solvers' own tolerance) of zero is AT the boundary
+    and returns 0.0 - no budget, and no refusal either.
+
+    Returns degrees (the last overshoot that still clears), or a string that says why
+    there is no number:
+        CONTACT_AT_ZERO            the clearance is below -zero_tol_mm with no overshoot
+        "clear beyond <hi> deg"    still > 0 at hi_deg: no root inside the range searched
+
+    Solved on a bracket to tol_deg (bracketed_root), not sampled. It relies on the
+    clearance FALLING as the overshoot grows - every overshoot turns a leg toward its
+    neighbour at a hand-over - which is checked on a grid by test, not assumed.
+    """
+    def clear(o):
+        return clearance_mm(k, stride_mm, cross_section_mm, frames, overshoot_deg=o)
+
+    at_zero = clear(0.0)
+    if at_zero < -zero_tol_mm:
+        return CONTACT_AT_ZERO
+    if at_zero <= zero_tol_mm:
+        return 0.0
+    if clear(hi_deg) > 0.0:
+        return "clear beyond {:.4f} deg".format(hi_deg)
+    return bracketed_root(clear, 0.0, hi_deg, tol_deg)[0]

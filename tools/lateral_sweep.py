@@ -1,5 +1,10 @@
 """The (posture, stride) search on D58's LATERAL footholds (D424 clause 7, PROJECT_23 §4).
 
+THE RECORD SINCE D431. This module is FINDING_23's search and stays byte-reproducible:
+D431 replaced its coxa proxy with Hardware's posed figures and made D29 a bar at a
+calibrated width. The search on those bars is tools/calibrated_sweep.py, which imports
+the closed forms here unchanged.
+
     python -m tools.lateral_sweep                     print the tables
     python -m tools.lateral_sweep --csv PATH          also write the CSV they come from
 

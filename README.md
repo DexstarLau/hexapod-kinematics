@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml/badge.svg)](https://github.com/DexstarLau/hexapod-kinematics/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12%20%7C%203.14-blue)
-![Tests](https://img.shields.io/badge/tests-318%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-385%20passing-brightgreen)
 
 Forward and inverse kinematics for a six-legged walking robot, with a Python
 reference bound to the same C source and a test suite.
@@ -32,8 +32,8 @@ What is here:
 | Repository, build, CI | working |
 | Derivation and the sweep outputs | working, checked against externally supplied figures. **Sixteen names, reported by name. Seven are register-identified (D418, D425)**: `femur_travel_swing_deg`, `femur_coxa_ratio_swing_avg`, `cobinding_clearance_mm` (with D104's span-based clearance named beside it), `theta_span_deg`, `tau_femur_peak_kgcm`, `foot_dz_per_quantum_mm`, `bob_mm`. **The other nine are computed with membership NOT HELD** until coordination rules them. Every output carries its definition and phase window; swing columns are labelled *level-body, body-frame progress* (D426) |
 | Stance pose, P1′ (D414) | **record** — `sim/stance_pose.py`. The kit's unclocked, mount-direction footholds: pitched body and a pose step at every tripod hand-over (D419). Kept as the record of that configuration; **not the search** (D424 clause 3) |
-| D197 re-sweep | **the search runs on D58's lateral footholds** — `tools/lateral_sweep.py`, `reports/d58_lateral_sweep.csv`, and the stride ceiling as a curve in `reports/d427_stride_curve.csv`. Bars: torque (D420 cl. 1), vertical (D425 cl. 3), the femur window (D248), and **Hardware's coxa figures as a labelled proxy** (D427 cl. 3) for **D29's link-distance check**. **Every row interim; no pair is chosen here.** D248's ±13.5° envelope is withdrawn as a bar (D427 cl. 2) and stays reachable as the record that reproduces `FINDING_22` |
-| D29 inter-leg clearance | working — `sim/interleg.py`. Minimum distance between adjacent same-side leg **links** across the whole cycle, hand-over included, at a configurable cross-section. **The cross-section is Hardware's and is UNSUPPLIED**, so it is reported parameterised, never applied as a bar. The swing side is the labelled level-body, body-frame progress model, not D430's `P8` |
+| D197 re-sweep | **the search runs on D431's bars** — `tools/calibrated_sweep.py`, `reports/d431_rows.csv`, and the stride ceiling as a curve in `reports/d431_stride_curve.csv`. Bars: torque (D420 cl. 1), vertical (D425 cl. 3), **Hardware's posed coxa figures** (D431 cl. 2) and **D29 applied as a bar at 40.8100 mm, calibrated at one configuration** (D431 cl. 3), with the same rows at 52.0000 and 56.0000 mm as the envelope bound. Torque binds below the knee (71.3531° at 40.8100 mm), D29 above it; there is no interior maximum. Each row carries the swing overshoot that uses the whole clearance, in `sim/interleg.py`'s parameterisation, **not `P8`'s**. **Every row interim; no pair is chosen here.** `tools/lateral_sweep.py` stays as the record that reproduces `FINDING_23` (D427's splayed proxy) and, with `bars="d248"`, `FINDING_22` |
+| D29 inter-leg clearance | working — `sim/interleg.py`. Minimum distance between adjacent same-side leg **links** across the whole cycle, hand-over included. **Width 40.8100 mm, calibrated at one configuration** (D431 cl. 3: this check's 44.7711 mm less Hardware's 3.96 mm solid-to-solid); wiring allowance owed, not assumed. The swing side is the labelled level-body, body-frame progress model. **`P8`'s path is swept separately** in `sim/p8_path.py` → `reports/d433_p8_d29.csv` (80.0000 / 60.0000 only, three `ε`). **Known defect, recorded by test, not yet fixed:** at a hand-over this swing model holds the mid-stance body height, so its lift-off pose is not the stance extreme (femur 80.0000 against 78.7384); `FINDING_23`'s 44.7711 mm is that pose, and both legs at their true extremes read 45.0503 mm |
 | Hard-coded-constant guard | **executing** — 10 constants, each with a reasoned output footprint |
 | Corner-leg yaw guard | **executing** — catches a radial leg model on four legs of six |
 | The three swing guards | **executing** across 9 (stride, duty) points |
@@ -136,8 +136,14 @@ python -m tools.check_d275_pins --actions "path/to/your/copy.ini"
 # regenerates the CSV on every run, so a changed figure is a red test, not a surprise.
 python -m tools.resweep --csv reports/d197_resweep.csv
 
-# the search on D58's lateral footholds (D424 clause 7); a test regenerates this CSV too
+# the search on D58's lateral footholds (D424 clause 7) - FINDING_23's record; a test regenerates this CSV too
 python -m tools.lateral_sweep --csv reports/d58_lateral_sweep.csv --curve-csv reports/d427_stride_curve.csv
+
+# the search on D431's bars: posed coxa, D29 at the calibrated width (about 40 s); a test regenerates both CSVs
+python -m tools.calibrated_sweep --csv reports/d431_rows.csv --curve-csv reports/d431_stride_curve.csv
+
+# D29 along P8's swing path (D433): prints the three calibration poses and writes the CSV; a test regenerates it
+python -m sim.p8_path --csv reports/d433_p8_d29.csv
 
 # the visualiser. config/hexapod.json leaves two fields it needs unspecified, so each
 # must be supplied by name, and the page marks them as stand-ins. These two values
