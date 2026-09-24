@@ -64,6 +64,10 @@ from sim import derive as D
 ADJACENT_PAIRS = (("R1", "R2"), ("R2", "R3"), ("L1", "L2"), ("L2", "L3"))
 TRIPODS = (("R1", "R3", "L2"), ("R2", "L1", "L3"))
 SWING_MODEL = D.SWING_MODEL_LABEL
+SWING_MODEL_CONTINUOUS = (D.SWING_MODEL_LABEL + "; CONTINUOUS WITH STANCE: the swinging foot is "
+                          "solved against the level body's height at that instant, so lift-off "
+                          "and touch-down are the stance extremes (pose (b)), not the "
+                          "mid-stance height (FINDING_24 sec.1, D437 cl.8)")
 
 
 class NoPose(Exception):
@@ -102,7 +106,19 @@ def stance_pose_of(k, d, leg, x_mm):
     return yaw, math.degrees(math.acos(cos_theta))
 
 
-def swing_pose_of(k, d, leg, u, stride_mm, overshoot_deg=0.0):
+def body_height_at(k, d, stride_mm, u):
+    """The level body's height above the ground at stance fraction u: the depth of the
+    STANDING tripod's feet, whose stance position is x = s - u*stride. It is the nominal
+    d.body_height_mm only at mid-stance (u = 0.5), and 1.9162 mm less at the extremes on
+    the shipped 80.0000 / 60.0000 mm."""
+    x = stride_mm / 2.0 - u * stride_mm
+    cos_t = (math.hypot(d.r_nom_mm, x) - k.value("coxa_length_mm")) / d.rigid_len_mm
+    if not -1.0 <= cos_t <= 1.0:
+        raise NoPose("stance reach {:.4f} mm is outside the leg".format(math.hypot(d.r_nom_mm, x)))
+    return d.rigid_len_mm * math.sin(math.acos(cos_t))
+
+
+def swing_pose_of(k, d, leg, u, stride_mm, overshoot_deg=0.0, continuous=False):
     """(yaw, Theta) on the labelled swing model, solved as IK_PROJ_RADIAL does.
 
     overshoot_deg prices D430 clause 4's overshoot WITHOUT claiming P8's shape: the coxa
@@ -111,6 +127,12 @@ def swing_pose_of(k, d, leg, u, stride_mm, overshoot_deg=0.0):
     the rear extreme at lift-off, beyond the front extreme at touchdown, zero at
     mid-swing. The MAGNITUDE is D430's (0.09-2.20 deg at the pairs Spider AI measured);
     the shape is this module's parameterisation and is labelled so wherever it is used.
+
+    continuous=False is FINDING_23's model, kept so its record reproduces: the foot is
+    solved against the MID-STANCE body height, so at a hand-over it sits 1.9162 mm below
+    the ground the standing tripod defines - femur 80.0000 where the stance extreme's is
+    78.7384 (FINDING_24 sec.1). continuous=True solves it against body_height_at(u), so
+    lift-off and touch-down ARE the stance extremes (D437 clause 8 accepts the change).
     """
     px, py = k.value("coxa_positions_mm")[leg]
     side = 1.0 if py > 0 else -1.0
@@ -123,13 +145,14 @@ def swing_pose_of(k, d, leg, u, stride_mm, overshoot_deg=0.0):
     # front extreme at touchdown. A first version had it the other way and made the legs
     # look further apart; caught by the control that says an overshoot must close the gap.
     yaw += side * overshoot_deg * math.cos(math.pi * u)
-    sin_theta = (d.body_height_mm - lift) / d.rigid_len_mm
+    height = body_height_at(k, d, stride_mm, u) if continuous else d.body_height_mm
+    sin_theta = (height - lift) / d.rigid_len_mm
     if not -1.0 <= sin_theta <= 1.0:
         raise NoPose("swing lift {:.4f} mm is outside the leg".format(lift))
     return yaw, math.degrees(math.asin(sin_theta))
 
 
-def pose_at(k, d, stride_mm, phase, overshoot_deg=0.0):
+def pose_at(k, d, stride_mm, phase, overshoot_deg=0.0, continuous=False):
     """Every leg's (yaw, Theta) at one phase in [0, 1). Group A stances first."""
     s = stride_mm / 2.0
     out = OrderedDict()
@@ -140,7 +163,7 @@ def pose_at(k, d, stride_mm, phase, overshoot_deg=0.0):
             if standing:
                 out[leg] = stance_pose_of(k, d, leg, s - u * stride_mm)
             else:
-                out[leg] = swing_pose_of(k, d, leg, u, stride_mm, overshoot_deg)
+                out[leg] = swing_pose_of(k, d, leg, u, stride_mm, overshoot_deg, continuous)
     return out
 
 
@@ -177,9 +200,9 @@ def segment_distance(a0, a1, b0, b1):
     return math.sqrt(dot(dx, dx))
 
 
-def link_distance_at(k, d, stride_mm, phase, overshoot_deg=0.0):
+def link_distance_at(k, d, stride_mm, phase, overshoot_deg=0.0, continuous=False):
     """(distance, pair, which links, phase) - the closest adjacent links at one phase."""
-    poses = pose_at(k, d, stride_mm, phase, overshoot_deg)
+    poses = pose_at(k, d, stride_mm, phase, overshoot_deg, continuous)
     best = (float("inf"), None, None)
     for left, right in ADJACENT_PAIRS:
         a = leg_links(k, d, left, *poses[left])
@@ -194,19 +217,19 @@ def link_distance_at(k, d, stride_mm, phase, overshoot_deg=0.0):
     return best
 
 
-def min_link_distance(k, stride_mm, frames=121, refine=40, overshoot_deg=0.0):
+def min_link_distance(k, stride_mm, frames=121, refine=40, overshoot_deg=0.0, continuous=False):
     """Minimum over the whole cycle, refined around the best frame rather than read off
     the grid. Returns (distance_mm, which pair and links, phase)."""
     d = D.derive(k)
     grid = [i / float(frames - 1) for i in range(frames)]
-    best = min((link_distance_at(k, d, stride_mm, p, overshoot_deg) for p in grid),
+    best = min((link_distance_at(k, d, stride_mm, p, overshoot_deg, continuous) for p in grid),
                key=lambda r: r[0])
     step = 1.0 / (frames - 1)
     lo, hi = max(0.0, best[2] - step), min(1.0, best[2] + step)
     for _ in range(refine):                       # golden-section on the local minimum
         m1, m2 = lo + 0.382 * (hi - lo), lo + 0.618 * (hi - lo)
-        r1 = link_distance_at(k, d, stride_mm, m1, overshoot_deg)
-        r2 = link_distance_at(k, d, stride_mm, m2, overshoot_deg)
+        r1 = link_distance_at(k, d, stride_mm, m1, overshoot_deg, continuous)
+        r2 = link_distance_at(k, d, stride_mm, m2, overshoot_deg, continuous)
         if r1[0] < r2[0]:
             hi, best = m2, min(best, r1, key=lambda r: r[0])
         else:
@@ -214,13 +237,31 @@ def min_link_distance(k, stride_mm, frames=121, refine=40, overshoot_deg=0.0):
     return best
 
 
-def clearance_mm(k, stride_mm, cross_section_mm, frames=121, overshoot_deg=0.0):
+def clearance_mm(k, stride_mm, cross_section_mm, frames=121, overshoot_deg=0.0, continuous=False):
     """D29's figure: centre-line distance minus the link cross-section."""
-    return min_link_distance(k, stride_mm, frames, overshoot_deg=overshoot_deg)[0] - cross_section_mm
+    return (min_link_distance(k, stride_mm, frames, overshoot_deg=overshoot_deg, continuous=continuous)[0]
+            - cross_section_mm)
+
+
+def handover_distance_mm(k, stride_mm, pairs=ADJACENT_PAIRS):
+    """Stance only, no swing model at all: each closing pair at the hand-over, its front
+    leg at its REAR stance extreme and its rear leg at its FRONT extreme - pose (b).
+    Returns (distance, pair). Independent of swing_pose_of, so it can check it."""
+    d = D.derive(k)
+    s = stride_mm / 2.0
+    best = (float("inf"), None)
+    for front, rear in pairs:
+        a = leg_links(k, d, front, *stance_pose_of(k, d, front, -s))
+        b = leg_links(k, d, rear, *stance_pose_of(k, d, rear, +s))
+        dist = min(segment_distance(p[0], p[1], q[0], q[1])
+                   for p in ((a[0], a[1]), (a[1], a[2])) for q in ((b[0], b[1]), (b[1], b[2])))
+        if dist < best[0] - 1e-9:
+            best = (dist, "%s-%s" % (front, rear))
+    return best
 
 
 def longest_stride_for_width(k, cross_section_mm, lo_mm=1.0, hi_mm=200.0,
-                             frames=121, iterations=40, overshoot_deg=0.0):
+                             frames=121, iterations=40, overshoot_deg=0.0, continuous=False):
     """The stride at which D29's clearance reaches zero for this cross-section.
 
     The distance falls as the stride grows - adjacent legs stroke in antiphase - so the
@@ -229,7 +270,7 @@ def longest_stride_for_width(k, cross_section_mm, lo_mm=1.0, hi_mm=200.0,
     stride is invented at either end.
     """
     def clear(stride):
-        return clearance_mm(k, stride, cross_section_mm, frames, overshoot_deg)
+        return clearance_mm(k, stride, cross_section_mm, frames, overshoot_deg, continuous)
 
     if clear(hi_mm) > 0.0:
         return None          # no contact anywhere in the range searched: no root
@@ -284,7 +325,7 @@ def bracketed_root(f, a, b, tol=1e-10, max_iter=200):
 
 
 def overshoot_budget_deg(k, stride_mm, cross_section_mm, hi_deg=10.0, frames=121,
-                         tol_deg=1e-10, zero_tol_mm=1e-9):
+                         tol_deg=1e-10, zero_tol_mm=1e-9, continuous=False):
     """The swing overshoot at which D29's clearance reaches zero, at this stride and width.
 
     THE QUANTITY is overshoot_deg exactly as swing_pose_of defines it (OVERSHOOT_QUANTITY).
@@ -309,7 +350,7 @@ def overshoot_budget_deg(k, stride_mm, cross_section_mm, hi_deg=10.0, frames=121
     neighbour at a hand-over - which is checked on a grid by test, not assumed.
     """
     def clear(o):
-        return clearance_mm(k, stride_mm, cross_section_mm, frames, overshoot_deg=o)
+        return clearance_mm(k, stride_mm, cross_section_mm, frames, overshoot_deg=o, continuous=continuous)
 
     at_zero = clear(0.0)
     if at_zero < -zero_tol_mm:

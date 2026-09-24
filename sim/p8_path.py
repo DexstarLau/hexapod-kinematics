@@ -236,18 +236,108 @@ def calibration_poses(k):
     return out
 
 
-def sweep_rows(k0):
+# D437 (PROJECT_29): the widths now reported, calibrated at pose (c). ASCII only.
+WIDTHS_D437 = (("ruled 45.8800 (D437 cl.4, pose c, worst pair)", 45.8800),
+               ("45.3800 (D437 cl.4, pose c, least conservative pair)", 45.3800),
+               ("envelope 51.0000 (femur, D436 cl.4)", 51.0000),
+               ("envelope 56.0000 (tibia, D436 cl.4)", 56.0000))
+STATUS_D437 = ("interim - width calibrated at pose (c); pose (b) pending (D437 cl.8); P8 at "
+               "80.0000 / 60.0000 only; no pair (D431 cl.9)")
+# D439 (HANDOFF_97, carried in PROJECT_30): the width calibrated on the gait's own hand-over
+# pose at 58.711 mm - 46.2626 - 0.489 = 45.7736, ruled 45.77; least conservative pair 45.14.
+WIDTHS_D439 = (("ruled 45.7700 (D439 cl.2, gait hand-over pose at 58.711 mm, worst pair)", 45.7700),
+               ("45.1400 (D439 cl.2, least conservative pair)", 45.1400),
+               ("envelope 51.0000 (femur, D436 cl.4)", 51.0000),
+               ("envelope 56.0000 (tibia, D436 cl.4)", 56.0000))
+STATUS_D439 = ("interim - width calibrated at 58.711 mm on the gait's hand-over pose; +/-0.15 mm "
+               "near a boundary (D439 cl.3); P8 at 80.0000 deg only; no pair (D431 cl.9)")
+STRIDES_D439 = (60.0000, 58.0000)
+MARGINS_D439 = (0.0, 0.5)
+SETS = {"d433": (None, STATUS), "d437": (WIDTHS_D437, STATUS_D437), "d439": (WIDTHS_D439, STATUS_D439)}
+CLOSING = ("R1", "R2")      # the four closing pairs tie (mirror images, by test): one stands for all
+
+
+def sweep_strides(k0, strides=STRIDES_D439, widths=WIDTHS_D439, status=STATUS_D439):
+    """D29 along P8 at each stride - the path RE-SOLVED at each (every constant, the lift a
+    included: D439 cl.5), three eps, overall and per pair, clearance at each width."""
+    k = at_posture(k0)
+    d = D.derive(k)
+    rows = []
+    for stride in strides:
+        for eps in EPS_SET:
+            path = P8Path(k, stride, eps)
+            over, tau_star = path.overshoot_deg()
+            at_contact = _closest(k, d, path, 0.0)[0]
+            per_pair = [(("%s-%s" % pr), min_link_distance(k, path, pairs=(pr,))) for pr in I.ADJACENT_PAIRS]
+            low = min(res[0] for _, res in per_pair)
+            tied = [(n, res) for n, res in per_pair if res[0] <= low + TIE_MM]
+            first = tied[0][1]
+            overall = (low, first[1] + ("; tie within 1e-9 mm: " + ", ".join(n for n, _ in tied)
+                                        if len(tied) > 1 else ""), first[2], first[3])
+            for scope, (dist, desc, phase, _pair) in [("all four pairs", overall)] + per_pair:
+                r = OrderedDict()
+                r["stride_mm"] = stride
+                r["swing_ramp_eps"] = eps
+                r["p8_overshoot_deg (beyond stance, at tau*)"] = over
+                r["tau_star (of the swing)"] = tau_star
+                r["scope"] = scope
+                r["d29_min_centreline_mm"] = dist
+                r["phase"] = phase
+                r["closest_links"] = desc
+                r["centreline_at_the_hand_over_mm (phase 0)"] = at_contact
+                r["cost_of_the_swing_mm (hand-over less minimum)"] = at_contact - dist
+                for name, w in widths:
+                    r["clearance_mm @ %s" % name] = dist - w
+                for name, w in widths:
+                    r["passes @ %s" % name] = dist - w > 0.0
+                r["source"] = SOURCE.replace("at 80.0000 / 60.0000 mm", "at 80.0000 deg, stride re-solved")
+                r["status"] = status
+                rows.append(r)
+    return rows
+
+
+def path_stride_for_clearance(k0, width_mm, eps, margin_mm=0.0, lo_mm=50.0, hi_mm=70.0, tol_mm=1e-8):
+    """The stride at 80.0000 deg at which P8's whole-path minimum clearance equals margin_mm
+    (PROJECT_30 sec.2) - the path re-solved at every trial stride, the root solved on a
+    bracket, not sampled. The four closing pairs tie, so R1-R2 stands for all four (a test
+    holds the tie at 60 and 58 mm). Returns the longest stride that keeps >= margin_mm."""
+    k = at_posture(k0)
+    def excess(stride):
+        return min_link_distance(k, P8Path(k, stride, eps), pairs=(CLOSING,))[0] - width_mm - margin_mm
+    return I.bracketed_root(excess, lo_mm, hi_mm, tol_mm)[0]
+
+
+def strides_rows(k0, widths=WIDTHS_D439, status=STATUS_D439):
+    rows = []
+    for name, w in widths[:2]:                   # the two calibrated widths; envelopes need none
+        for eps in EPS_SET:
+            for margin in MARGINS_D439:
+                r = OrderedDict()
+                r["width"] = name
+                r["width_mm"] = w
+                r["swing_ramp_eps"] = eps
+                r["clearance_kept_mm (whole path)"] = margin
+                r["longest_stride_mm at 80.0000 deg"] = path_stride_for_clearance(k0, w, eps, margin)
+                r["status"] = status
+                rows.append(r)
+    return rows
+
+
+def sweep_rows(k0, widths=None, status=STATUS):
     """D29 along P8, per eps: overall and per pair, at the ruled width, at the widths poses
     (b) and (c) imply, and at the two envelopes. Beside it, the parameterised overshoot of
     sim/interleg.py at the SAME scalar - the comparison PROJECT_28 §1.2 asks about."""
     k = at_posture(k0)
     d = D.derive(k)
     cal = calibration_poses(k)
-    widths = OrderedDict([("ruled 40.8100 (D431 cl.3, on pose a)", RULED_WIDTH_MM)])
-    for label, (_c, w) in list(cal.items())[1:]:
-        widths["%.4f from pose %s" % (w, label[1])] = w
-    for w in ENVELOPE_WIDTHS_MM:
-        widths["envelope %.4f" % w] = w
+    if widths is None:                  # the record: FINDING_24's widths, D433's CSV
+        widths = OrderedDict([("ruled 40.8100 (D431 cl.3, on pose a)", RULED_WIDTH_MM)])
+        for label, (_c, w) in list(cal.items())[1:]:
+            widths["%.4f from pose %s" % (w, label[1])] = w
+        for w in ENVELOPE_WIDTHS_MM:
+            widths["envelope %.4f" % w] = w
+    else:
+        widths = OrderedDict(widths)
     rows = []
     for eps in EPS_SET:
         path = P8Path(k, STRIDE_MM, eps)
@@ -283,7 +373,7 @@ def sweep_rows(k0):
                 r["passes @ %s" % name] = dist - w > 0.0
             r["interleg_parameterised_min_mm @ the same scalar overshoot"] = param
             r["source"] = SOURCE
-            r["status"] = STATUS
+            r["status"] = status
             rows.append(r)
     return cal, rows
 
@@ -295,8 +385,25 @@ def main(argv=None):
     from tools.calibrated_sweep import fmt, write_csv
     ap = argparse.ArgumentParser(description="D29 along P8's path (D431 cl.7, D433).")
     ap.add_argument("--csv")
+    ap.add_argument("--set", choices=sorted(SETS), default="d439",
+                    help="d439 current (default); d437 and d433 reproduce FINDING_25's and FINDING_24's records")
+    ap.add_argument("--strides-csv", help="d439 only: the strides that keep 0 and +0.5 mm")
     args = ap.parse_args(argv)
-    cal, rows = sweep_rows(C.load())
+    widths, status = SETS[args.set]
+    if args.set == "d439":
+        rows = sweep_strides(C.load())
+        for r in rows:
+            if r["scope"] == "all four pairs":
+                print(" | ".join(fmt(v) for k_, v in r.items() if k_ not in ("closest_links", "source", "status")))
+        srows = strides_rows(C.load())
+        for r in srows:
+            print(" | ".join(fmt(v) for k_, v in r.items() if k_ != "status"))
+        if args.csv:
+            write_csv(rows, args.csv)
+        if args.strides_csv:
+            write_csv(srows, args.strides_csv)
+        return 0
+    cal, rows = sweep_rows(C.load(), widths, status)
     for label, (c, w) in cal.items():
         print("%-78s centre-line %.4f mm, width %.4f mm" % (label, c, w))
     for r in rows:

@@ -221,3 +221,86 @@ def test_the_overall_row_names_the_tie_rather_than_a_winner():
     for r in (r for r in rows if r["scope"] == "all four pairs"):
         assert r["closest_links"].startswith("R1 rigid (swing) / R2 rigid (stance)")
         assert r["closest_links"].endswith("tie within 1e-9 mm: R1-R2, R2-R3, L1-L2, L2-L3")
+
+
+# ---------------------------------------------------------------- D437 (PROJECT_29)
+
+def test_d437_widths_predict_contact_on_p8s_path_at_every_width():
+    """D437 cl.5, coordination's re-derivation: -0.84 / -0.88 / -1.03 mm at 45.8839 mm.
+    A prediction on a width assumed constant between poses (c) and (b), not a bar."""
+    rows = P.sweep_rows(C.load(), P.WIDTHS_D437, P.STATUS_D437)[1]
+    overall = [r for r in rows if r["scope"] == "all four pairs"]
+    for r, coord in zip(overall, (-0.84, -0.88, -1.03)):
+        assert abs((r["d29_min_centreline_mm"] - 45.8839) - coord) < 0.005
+        assert [v for key, v in r.items() if key.startswith("passes @")] == [False, False, False, False]
+        assert r["status"] == P.STATUS_D437 and "pose (b) pending" in r["status"]
+
+
+def test_committed_d437_csv_is_reproduced(tmp_path):
+    from tools.calibrated_sweep import write_csv
+    fresh = tmp_path / "d437_p8.csv"
+    write_csv(P.sweep_rows(C.load(), P.WIDTHS_D437, P.STATUS_D437)[1], str(fresh))
+    diffs = _csv_cells_that_differ(os.path.join(HERE, os.pardir, "reports", "d437_p8_d29.csv"), str(fresh))
+    assert not diffs, "cells that differ (row, column, committed, fresh): %r" % (diffs,)
+
+
+# ---------------------------------------------------------------- D439 (PROJECT_30)
+
+def test_p8_at_58_mm_reproduces_coordinations_closed_form_constants():
+    """PROJECT_30 sec.2's table. The lift a is RE-SOLVED at 58 mm (16.114149), not carried
+    from 60 mm (15.608204) - the literal D439 cl.5 found in Hardware's p8path.py."""
+    k = k80()
+    p = P.P8Path(k, 58.0, 0.120)
+    got = [round(v, 6) for v in (p.theta1_lo, p.rho_c, p.w0, p.c, p.a, p.rho_mid)]
+    assert got == [-12.835644, 130.539433, -24.820960, 4.101421, 16.114149, 150.755004]
+    assert round(p.theta2_deg(0.0), 4) == 78.8205
+    d = D.derive(k)
+    assert d.body_height_mm - p.R * math.sin(math.radians(p.r2(0.25)[1])) == pytest.approx(15.0, abs=1e-9)
+    want = [(26.440205, 0.126137, 0.007374, 57.9618), (32.556594, 0.959701, 0.055671, 58.7953),
+            (42.144885, 1.839954, 0.105807, 59.6756)]
+    for eps, (W, over, tau, corner) in zip(P.EPS_SET, want):
+        q = P.P8Path(k, 58.0, eps)
+        o, t = q.overshoot_deg()
+        assert (round(q.W, 6), round(o, 6), round(t, 6)) == (W, over, tau)
+        assert round(45.0 - q.theta1_lo + o, 4) == corner
+
+
+def test_d439_width_is_the_gait_hand_over_pose_less_hardwares_gap():
+    """D439 cl.2: 46.2626 - 0.489 = 45.7736, ruled 45.77; cl.3: at 60 mm the instrument
+    predicts -0.72 on the worst pair's width and -0.09 on the least conservative."""
+    from tools import calibrated_sweep as S
+    k = k80()
+    centre = I.handover_distance_mm(k, 58.711)[0]
+    assert round(centre, 4) == 46.2626
+    assert round(round(centre, 4) - 0.489, 4) == 45.7736 and round(45.7736, 2) == S.D439.widths[0]
+    assert S.D439.widths[1:] == (45.14, 51.0, 56.0) and P.WIDTHS_D439[0][1] == S.D439.widths[0]
+    at60 = I.handover_distance_mm(k, 60.0)[0]
+    assert round(at60 - 45.7736, 2) == -0.72 and round(at60 - 45.14, 2) == -0.09
+
+
+def test_d439_path_minimum_at_58_mm_and_the_four_pairs_tie():
+    """Coordination's 46.9308 / 46.8907 / 46.7447 mm; and the tie that lets one closing
+    pair stand for all four in the stride solve."""
+    k = k80()
+    for eps, want in zip(P.EPS_SET, (46.9308, 46.8907, 46.7447)):
+        path = P.P8Path(k, 58.0, eps)
+        per = [P.min_link_distance(k, path, frames=1001, pairs=(pr,))[0] for pr in I.ADJACENT_PAIRS]
+        assert round(P.min_link_distance(k, path)[0], 4) == want
+        assert max(per) - min(per) < 1e-6
+
+
+def test_d439_strides_reproduce_coordinations_controls():
+    """At 45.7736 mm the whole path keeps 0 at 59.228 / 59.184 / 59.028 mm and +0.5 mm at
+    58.697 / 58.654 / 58.499 mm of stride (coord_rederive_2026-09-23)."""
+    for eps, zero, half in zip(P.EPS_SET, (59.228, 59.184, 59.028), (58.697, 58.654, 58.499)):
+        assert round(P.path_stride_for_clearance(C.load(), 45.7736, eps, 0.0), 3) == zero
+        assert round(P.path_stride_for_clearance(C.load(), 45.7736, eps, 0.5), 3) == half
+
+
+def test_committed_d439_csvs_are_reproduced(tmp_path):
+    from tools.calibrated_sweep import write_csv
+    for rows, name in ((P.sweep_strides(C.load()), "d439_p8_d29.csv"), (P.strides_rows(C.load()), "d439_p8_strides.csv")):
+        fresh = tmp_path / name
+        write_csv(rows, str(fresh))
+        diffs = _csv_cells_that_differ(os.path.join(HERE, os.pardir, "reports", name), str(fresh))
+        assert not diffs, "%s: cells that differ (row, column, committed, fresh): %r" % (name, diffs)

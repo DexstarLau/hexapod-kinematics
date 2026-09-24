@@ -217,3 +217,36 @@ def test_the_budget_at_a_solved_boundary_is_zero_on_either_side_of_zero():
     assert I.overshoot_budget_deg(k, passing, 40.81) == 0.0
     assert I.overshoot_budget_deg(k, failing, 40.81) == 0.0
     assert I.overshoot_budget_deg(k, passing + 0.01, 40.81) == I.CONTACT_AT_ZERO
+
+
+# ------------------------------------------------------------------ the continuous swing model (D437 cl.8)
+
+LEGS6 = ("R1", "R2", "R3", "L1", "L2", "L3")
+
+
+def test_the_continuous_model_lifts_off_and_touches_down_at_the_stance_extremes():
+    """Checked against stance_pose_of - built from each leg's own foothold, not from the
+    swing model. The record's model misses by the 1.9162 mm bob (femur 80.0000 vs 78.7384)."""
+    k, d = at(80.0), D.derive(at(80.0))
+    for leg in LEGS6:
+        for u, x in ((0.0, -30.0), (1.0, +30.0)):
+            got = I.swing_pose_of(k, d, leg, u, 60.0, continuous=True)
+            want = I.stance_pose_of(k, d, leg, x)
+            assert got[0] == pytest.approx(want[0], abs=1e-9) and got[1] == pytest.approx(want[1], abs=1e-9)
+    record = I.swing_pose_of(k, d, "R2", 0.0, 60.0)
+    assert round(record[1] - d.psi_deg, 4) == 80.0000
+
+
+def test_the_body_is_nominal_only_at_mid_stance():
+    k, d = at(80.0), D.derive(at(80.0))
+    assert I.body_height_at(k, d, 60.0, 0.5) == pytest.approx(d.body_height_mm, abs=1e-9)
+    assert round(I.body_height_at(k, d, 60.0, 0.0), 4) == 157.4308
+    assert round(d.body_height_mm - I.body_height_at(k, d, 60.0, 1.0), 4) == 1.9162
+
+
+def test_on_the_continuous_model_the_cycle_minimum_at_80_60_is_pose_b():
+    k = at(80.0)
+    hand_over, _pair = I.handover_distance_mm(k, 60.0)
+    assert round(hand_over, 4) == 45.0503
+    assert I.min_link_distance(k, 60.0, continuous=True)[0] == pytest.approx(hand_over, abs=1e-9)
+    assert round(I.min_link_distance(k, 60.0)[0], 4) == 44.7711        # the record, unchanged

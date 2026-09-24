@@ -11,6 +11,7 @@ Checked against things this tool did not produce:
 """
 
 import csv
+import math
 import os
 
 import pytest
@@ -226,3 +227,142 @@ def test_every_committed_csv_is_ascii():
 def test_a_float_below_the_print_snap_prints_as_zero_with_no_sign():
     assert S.fmt(-7e-15) == S.fmt(7e-15) == S.fmt(0.0) == "0.0000"
     assert S.fmt(-1e-4) == "-0.0001" and S.fmt(True) == "yes"
+
+
+# ---------------------------------------------------------------- D437 (PROJECT_29)
+
+W37 = S.D437.widths[0]
+
+
+@pytest.fixture(scope="module")
+def swept_d437():
+    k = C.load()
+    floor, knees, rows = S.run(k, S.D437)
+    curve = S.stride_curve(k, 70.5, 89.0, bars=S.D437)
+    return floor, knees, rows, curve
+
+
+def test_d437_widths_are_pose_c_less_hardwares_exact_gaps():
+    """D437 cl.4: 46.5699 - 0.686 (worst pair) and 46.5699 - 1.192 (least conservative)."""
+    from sim import p8_path as P
+    pose_c = list(P.calibration_poses(P.at_posture(C.load())).values())[2][0]
+    assert round(pose_c, 4) == 46.5699
+    assert round(round(pose_c, 4) - 0.686, 4) == 45.8839 and round(45.8839, 2) == S.D437.widths[0]
+    assert round(round(pose_c, 4) - 1.192, 4) == 45.3779 and round(45.3779, 2) == S.D437.widths[1]
+    assert S.D437.widths[2:] == (51.0, 56.0) and S.D437.corner_deg == 71.06
+
+
+def test_coordinations_hand_over_control_is_reproduced_two_ways():
+    """PROJECT_29 sec.1: 59.1132 / 59.5821 / 59.6513 mm at 45.8839 / 45.4429 / 45.3779 mm,
+    80.0000 deg, stance only. Reproduced stance only AND over the whole cycle on the
+    continuous model - two routes that share only the link geometry."""
+    k = at(80.0)
+    for width, want in ((45.8839, 59.1132), (45.4429, 59.5821), (45.3779, 59.6513)):
+        stance_only = S.handover_zero_stride_mm(k, width)
+        assert round(stance_only, 4) == want
+        whole = I.bracketed_root(lambda s: I.clearance_mm(k, s, width, continuous=True), 1.0, 200.0, 1e-10)[0]
+        assert whole == pytest.approx(stance_only, abs=1e-8)
+
+
+def test_d437_middle_bar_never_binds_and_the_corner_sits_on_its_closed_form():
+    k = at(80.0)
+    corner_s, middle_s = S.half_stride_posed_coxa(k, S.D437)
+    assert middle_s == math.inf
+    assert L.coxa_angles_from_mount_deg(k, corner_s)[1] == pytest.approx(71.06, abs=1e-9)
+
+
+def _excess_d437(theta2, stride):
+    k = at(theta2)
+    row = D.sweep_point(k, stride, k.value("duty_factor"))[0]
+    corner = L.coxa_angles_from_mount_deg(k, stride / 2.0)[1]
+    return {"torque": row["tau_femur_peak_kgcm"] * k.value("margin_factor") - k.value("tau_servo_kgcm"),
+            "vertical": L.vertical_total_mm(k, stride) - k.value("body_bob_budget_mm"),
+            "posed coxa": corner - 71.06,
+            "D29": -I.clearance_mm(k, stride, W37, continuous=True)}
+
+
+@pytest.mark.parametrize("theta2", [71.0, 71.1521, 75.0, 80.0, 85.0, 89.0])
+def test_d437_longest_stride_sits_exactly_on_its_binding_bar(theta2):
+    _, longest, binding = S.stride_limits(at(theta2), bars=S.D437)
+    here = _excess_d437(theta2, longest)
+    assert all(v <= 1e-6 for v in here.values())
+    assert any(abs(here[b]) <= 1e-6 for b in binding)
+    assert any(v > 0 for v in _excess_d437(theta2, longest + 2e-3).values())
+
+
+def test_d437_knee_hands_over_from_torque_to_d29(swept_d437):
+    knee = swept_d437[1][W37]
+    assert round(knee, 4) == 71.1521
+    assert S.stride_limits(at(knee - 0.01), bars=S.D437)[2] == ["torque"]
+    assert S.stride_limits(at(knee + 0.01), bars=S.D437)[2] == ["D29"]
+
+
+def test_d437_rows_print_every_tie_as_a_tie(swept_d437):
+    """No row may name one of four mirror-image pairs: which one 'wins' is the last bits."""
+    for r in swept_d437[2]:
+        assert "tie" in r["d29_closest_links"] and "rigid" not in r["d29_closest_links"]
+    for r in swept_d437[3]:
+        assert "tie" in r["d29_closest_links @ width %.4f" % W37]
+    shipped = swept_d437[2][-1]
+    assert round(shipped["d29_clearance_mm @ width 45.8800"], 4) == -0.8297
+    assert shipped["d29_bar_passes @ width 45.8800 (clearance > -1e-9 mm)"] is False
+
+
+def test_d437_no_printed_cell_moves_when_an_input_moves_by_a_few_ulps():
+    class Nudge(object):
+        def __init__(self, base, rel):
+            self.base, self.rel = base, rel
+        def value(self, name):
+            v = self.base.value(name)
+            return v * (1.0 + self.rel) if name == "coxa_length_mm" else v
+    cells = lambda rows: [[S.fmt(v) for v in r.values()] for r in rows]
+    base = S.stride_curve(C.load(), 88.0, 89.0, bars=S.D437)
+    assert cells(S.stride_curve(Nudge(C.load(), 3e-15), 88.0, 89.0, bars=S.D437)) == cells(base)
+
+
+def test_committed_d437_rows_csv_is_reproduced(swept_d437, tmp_path):
+    fresh = tmp_path / "d437_rows.csv"
+    S.write_csv(swept_d437[2], str(fresh))
+    diffs = _csv_cells_that_differ(os.path.join(HERE, os.pardir, "reports", "d437_rows.csv"), str(fresh))
+    assert not diffs, "cells that differ (row, column, committed, fresh): %r" % (diffs,)
+
+
+def test_committed_d437_curve_csv_is_reproduced(swept_d437, tmp_path):
+    fresh = tmp_path / "d437_curve.csv"
+    S.write_csv(swept_d437[3], str(fresh))
+    diffs = _csv_cells_that_differ(os.path.join(HERE, os.pardir, "reports", "d437_stride_curve.csv"), str(fresh))
+    assert not diffs, "cells that differ (row, column, committed, fresh): %r" % (diffs,)
+
+
+# ---------------------------------------------------------------- D439 (PROJECT_30)
+
+W39 = S.D439.widths[0]
+
+
+@pytest.fixture(scope="module")
+def swept_d439():
+    k = C.load()
+    floor, knees, rows = S.run(k, S.D439)
+    curve = S.stride_curve(k, 70.5, 89.0, bars=S.D439)
+    return floor, knees, rows, curve
+
+
+def test_d439_knee_hands_over_and_the_shipped_stride_touches(swept_d439):
+    knee = swept_d439[1][W39]
+    assert round(knee, 4) == 71.1567
+    assert S.stride_limits(at(knee - 0.01), bars=S.D439)[2] == ["torque"]
+    assert S.stride_limits(at(knee + 0.01), bars=S.D439)[2] == ["D29"]
+    shipped = swept_d439[2][-1]
+    assert round(shipped["d29_clearance_mm @ width 45.7700"], 4) == -0.7197
+    assert shipped["d29_bar_passes @ width 45.7700 (clearance > -1e-9 mm)"] is False
+    assert round(S.handover_zero_stride_mm(at(80.0), W39), 4) == 59.2343
+    for r in swept_d439[2]:
+        assert "tie" in r["d29_closest_links"] and "58.711" in r["d29_width_label"]
+
+
+def test_committed_d439_csvs_are_reproduced(swept_d439, tmp_path):
+    for rows, name in ((swept_d439[2], "d439_rows.csv"), (swept_d439[3], "d439_stride_curve.csv")):
+        fresh = tmp_path / name
+        S.write_csv(rows, str(fresh))
+        diffs = _csv_cells_that_differ(os.path.join(HERE, os.pardir, "reports", name), str(fresh))
+        assert not diffs, "%s: cells that differ (row, column, committed, fresh): %r" % (name, diffs)
